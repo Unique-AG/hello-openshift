@@ -1,0 +1,78 @@
+name: '[tf] Validate'
+on:
+  pull_request:
+    # Broad on purpose: any change to stack code, tfvars, the shared modules or
+    # the workflow itself triggers validate, so the branch-protection ruleset
+    # always has a status check to gate on. Some paths over-trigger; that is
+    # cheap noise compared to missing-check stalls on PRs that need to merge.
+    paths:
+      - 'terraform/**'
+      - 'environments/**'
+      - '.github/workflows/**'
+  push:
+    # `deploy` is included because that is the branch ArgoCD tracks and the
+    # documented way to ship. Gating only `main` would leave the branch that is
+    # actually deployed unvalidated.
+    branches: [main, deploy]
+
+permissions:
+  contents: read
+
+jobs:
+  fmt:
+    # Separate job: `fmt -recursive terraform` covers the whole tree, so running
+    # it inside the per-stack matrix would repeat identical work three times.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: '1.14.0'
+      - run: terraform fmt -check -recursive terraform
+
+  stack:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        stack: [0-bootstrap, 1-foundation, 2-cluster]
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: hashicorp/setup-terraform@b9cd54a3c349d3f38e8881555d616ced269862dd # v3.1.2
+        with:
+          terraform_version: '1.14.0'
+
+      # trivy runs BEFORE `terraform init` on purpose: init vendors the rhcs
+      # modules into .terraform/, and trivy would then scan their Dockerfiles
+      # and report findings that have nothing to do with this repository.
+      - name: trivy
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: terraform/${{ matrix.stack }}
+          scanners: misconfig
+          severity: HIGH,CRITICAL
+          trivyignores: .trivyignore
+          # Without this the step is advisory only: trivy-action defaults
+          # exit-code to 0, so findings are printed and the job still passes.
+          exit-code: '1'
+          # Resolving the stack's variables is not optional: with aws_account_id
+          # or environment left null, the AWS provider's default_tags map
+          # contains nulls and trivy's adaptDefaultTags panics on AsString of a
+          # null value. The tracked *.template is used because common.tfvars
+          # itself is gitignored; its example values are sufficient for a
+          # static scan.
+          tf-vars: environments/common.tfvars.template,environments/sbx/${{ matrix.stack }}.tfvars
+
+      - name: init
+        # -backend=false: validation needs no state access and no AWS credentials.
+        run: terraform -chdir=terraform/${{ matrix.stack }} init -backend=false
+      - name: validate
+        run: terraform -chdir=terraform/${{ matrix.stack }} validate -no-color
+      - uses: terraform-linters/setup-tflint@90f302c255ef959cbfb4bd10581afecdb7ece3e6 # v4.1.1
+        with:
+          tflint_version: v0.62.1
+      - name: tflint
+        run: |
+          tflint --init
+          tflint --chdir=terraform/${{ matrix.stack }}

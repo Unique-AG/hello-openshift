@@ -1,0 +1,14 @@
+# OpenShift sandboxed containers (Kata). On ROSA (no bare metal) pod
+# VMs run as EC2 "peer pods" launched via the AWS API.
+# https://github.com/openshift/sandboxed-containers-operator
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: sandboxed-containers-operator
+  namespace: openshift-sandboxed-containers-operator
+spec:
+  channel: stable
+  name: sandboxed-containers-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic

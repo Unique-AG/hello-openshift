@@ -1,0 +1,52 @@
+# sbx-gateway — the MITM egress proxy every Conduct sandbox is forced through
+# (chart oci://uniquecr.azurecr.io/helm/sbx-gateway 2026.34.4, pulled via the
+# ArgoCD uniquecr OCI repo credential in root/external-secret-argocd-uniquecr.yaml).
+# Wave 5, alongside the agent-sandbox controller and after the conduct app has
+# created the `sbx` namespace and its SCC binding at wave 4.
+#
+# This was previously skipped because the image only existed in the private
+# uniqueapp.azurecr.io dev registry. As of 2026.34.4 it is published to
+# uniquecr.azurecr.io/unique/sbx-gateway and so reaches us through the ECR
+# pull-through cache.
+#
+# The chart generates its own MITM CA into the `egress-mitm-ca` Secret, which
+# sbx-templates mounts into each sandbox as a trusted root.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sbx-gateway
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  project: hello-openshift
+  sources:
+    - repoURL: uniquecr.azurecr.io
+      chart: helm/sbx-gateway
+      targetRevision: 2026.34.4
+      helm:
+        releaseName: sbx-gateway
+        valueFiles:
+          - $values/gitops/environments/sbx/conduct/values/sbx-gateway.yaml
+    - repoURL: git@github.com:Unique-AG/hello-openshift.git
+      targetRevision: deploy
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sbx
+  syncPolicy:
+    automated:
+      # prune: false — deleting the gateway would silently cut every sandbox's
+      # only egress path, and would also drop the generated MITM CA Secret.
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

@@ -1,0 +1,12 @@
+# Backend for the 0-bootstrap stack (sbx).
+# Static and deterministic: the KMS alias never changes, so this file
+# is checked in (unlike the old generated backend-config.hcl files).
+# The state key predates the env-scoped layout and is kept as-is —
+# bootstrap is account-scoped and moving state buys nothing.
+
+bucket       = "s3-<org>-<client>-x-<region>-tfstate"
+key          = "bootstrap/terraform.tfstate"
+region       = "eu-central-2"
+encrypt      = true
+kms_key_id   = "alias/kms-<org>-<client>-<env>-<region>-tfstate"
+use_lockfile = true

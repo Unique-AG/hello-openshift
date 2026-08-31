@@ -1,0 +1,15 @@
+# In-cluster S3 bucket (ODF NooBaa) for node-chat file storage — replaces
+# Azure Blob. The OBC generates a ConfigMap (BUCKET_NAME) + Secret
+# (AWS_ACCESS_KEY_ID/SECRET) of the same name; node-chat's S3_BUCKET_* env
+# is wired from them. Setting S3_BUCKET_ENDPOINT flips node-chat to its
+# S3 strategy (file-storage.service.ts: hasS3BucketEndpoint).
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: chat-storage
+  namespace: unique
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  generateBucketName: chat-storage
+  storageClassName: openshift-storage.noobaa.io

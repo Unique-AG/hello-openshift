@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+# NOTE: no crds.yaml here — the agent-sandbox-controller chart ships
+# and owns the agents.x-k8s.io CRDs. A vendored copy fought the chart
+# via same-field-manager SSA rewrites (~120 generations of ping-pong)
+# and had drifted 3-of-4 schemas stale.
+resources:
+  - namespaces.yaml
+  - scc-rbac.yaml

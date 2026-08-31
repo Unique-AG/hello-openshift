@@ -1,0 +1,32 @@
+# prune: false — pruning a Subscription doesn't uninstall its CSV
+# anyway; this avoids surprise operator removal on refactors.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: operators
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: hello-openshift
+  source:
+    repoURL: git@github.com:Unique-AG/hello-openshift.git
+    targetRevision: deploy
+    path: gitops/environments/sbx/operators
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openshift-operators
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

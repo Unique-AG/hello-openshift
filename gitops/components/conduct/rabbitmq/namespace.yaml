@@ -1,0 +1,8 @@
+# QA runs RabbitMQ in `eventing` — mirrored here.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: eventing
+  labels:
+    argocd.argoproj.io/managed-by: openshift-gitops
+    unique.ag/layer: conduct

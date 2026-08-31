@@ -1,0 +1,9 @@
+# ODF is namespace-scoped: own OperatorGroup targeting openshift-storage
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: openshift-storage-operatorgroup
+  namespace: openshift-storage
+spec:
+  targetNamespaces:
+    - openshift-storage

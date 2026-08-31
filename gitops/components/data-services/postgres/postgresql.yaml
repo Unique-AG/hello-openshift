@@ -1,0 +1,58 @@
+# PostgreSQL cluster (CloudNativePG). Env-agnostic base: sizing is
+# patched per environment. Credentials are generated in-cluster by
+# the operator (secret: hello-openshift-postgres-app).
+#
+# Databases (from hello-aws): app_repository (bootstrap) plus the
+# rest as declarative Database CRs in databases.yaml.
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: hello-openshift-postgres
+  namespace: hello-openshift-data
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  instances: 1
+
+  storage:
+    size: 10Gi
+    storageClass: gp3-csi
+
+  bootstrap:
+    initdb:
+      database: app_repository
+      owner: app_user
+
+  # Declarative roles beyond the bootstrap owner. Passwords come from
+  # kubernetes.io/basic-auth secrets materialized by ExternalSecrets in
+  # the environment layer (source of truth: AWS Secrets Manager).
+  managed:
+    roles:
+      # Zitadel gets its own role (not app_user): zitadel runs in its
+      # own namespace and can't read the operator-generated
+      # hello-openshift-postgres-app secret, so its password is shared
+      # via ASM (hello-openshift/sbx/zitadel) instead.
+      - name: zitadel
+        ensure: present
+        login: true
+        # explicit CNPG-webhook defaults: managed.roles is an atomic
+        # list, so webhook-added fields inside it otherwise read as a
+        # perma-diff under Argo's merge diff
+        inherit: true
+        connectionLimit: -1
+        passwordSecret:
+          name: zitadel-db-credentials
+
+  postgresql:
+    parameters:
+      shared_buffers: 256MB
+      max_connections: "100"
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi

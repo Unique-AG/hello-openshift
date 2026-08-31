@@ -1,0 +1,24 @@
+# OpenShift GitOps (ArgoCD) operator.
+#
+# Channel: `latest` tracks the newest gitops-1.x stream. Before the
+# first bootstrap on a fresh cluster, pin to the current versioned
+# channel instead (survives major-stream changes):
+#   oc get packagemanifest openshift-gitops-operator \
+#     -o jsonpath='{.status.channels[*].name}'
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: openshift-gitops-operator
+  namespace: openshift-gitops-operator
+spec:
+  channel: latest
+  name: openshift-gitops-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic
+  config:
+    env:
+      # Let the default ArgoCD instance manage cluster-scoped
+      # resources (Namespaces, ClusterSecretStores, ...)
+      - name: ARGOCD_CLUSTER_CONFIG_NAMESPACES
+        value: openshift-gitops

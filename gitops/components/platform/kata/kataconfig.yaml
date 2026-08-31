@@ -1,0 +1,10 @@
+# Requires the peer-pods ConfigMap + Secret (see overlay) BEFORE the
+# KataConfig reconciles. Creates the kata-remote RuntimeClass.
+apiVersion: kataconfiguration.openshift.io/v1
+kind: KataConfig
+metadata:
+  name: cluster-kataconfig
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  enablePeerPods: true

@@ -1,0 +1,18 @@
+# CloudNativePG Operator
+# https://cloudnative-pg.io/
+#
+# Manages PostgreSQL clusters on Kubernetes. Replaces AWS Aurora
+# PostgreSQL. (Successor to the Zalando postgres-operator, which was
+# removed from the community catalog in 2026.)
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: cloudnative-pg
+  namespace: openshift-operators
+spec:
+  channel: stable-v1
+  name: cloudnative-pg
+  source: certified-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic

@@ -1,0 +1,102 @@
+# web-app-knowledge-upload (chart helm/knowledge-upload-app 2026.34.4) — the
+# Unique knowledge-base upload UI, served at
+# https://openshift.example.com/knowledge-upload.
+#
+# Why it is here: the chat frontend's side menu links to /knowledge-upload
+# ("Knowledge Base") unconditionally, and with nothing deployed behind that path
+# the OpenShift router served its "Application is not available" page.
+#
+# Flattened from the reference deployment (defaults/web-apps/knowledge-upload.yaml +
+# sbx/values/web-apps/_all.yaml), adapted exactly as web-app-admin.yaml:
+#   - image via the ECR pull-through cache (digest verified present:
+#     uniquecr/web-app-knowledge-upload:2026.34.4 = sha256:11fcd2848c3f...).
+#   - chart pinned to 2026.34.4 to match the rest of the slice.
+#   - Kong/Gateway-API HTTPRoutes DISABLED (no Gateway API CRDs here); exposure
+#     is the OpenShift Route in chat/route-knowledge-upload.yaml.
+#   - nodeSelector {} — the reference deployment's scalability/lifecycle labels don't exist here.
+#
+# Uploads land in the same in-cluster NooBaa bucket the chat backend uses, and
+# ingestion picks them up from there (see values/ingestion.yaml). Note ingestion
+# runs WITHOUT Elasticsearch on this cluster, so retrieval is Qdrant-only.
+
+prometheus:
+  enabled: false
+
+image:
+  registry: harbor.openshift.example.com
+  repository: uniquecr/web-app-knowledge-upload
+  useDigest: false
+  tag: "2026.34.4"
+
+routes:
+  hostname: openshift.example.com
+  pathPrefix: /knowledge-upload
+  auth:
+    jwt: false
+  paths:
+    default:
+      enabled: false
+    root:
+      enabled: false
+
+replicaCount: 2
+
+strategy:
+  type: Recreate
+
+resources:
+  limits:
+    cpu: 300m
+    memory: 500Mi
+  requests:
+    cpu: 300m
+    memory: 450Mi
+
+probes:
+  liveness:
+    httpGet:
+      path: /knowledge-upload/api/health
+      port: http
+    initialDelaySeconds: 5
+  readiness:
+    httpGet:
+      path: /knowledge-upload/api/health
+      port: http
+    initialDelaySeconds: 5
+
+podAnnotations:
+  reloader.stakater.com/auto: "true"
+
+env:
+  MAX_HEAP_MB: 350
+  SELF_URL: https://openshift.example.com/knowledge-upload
+  CHAT_APP_URL: https://openshift.example.com/chat
+  ADMIN_APP_URL: https://openshift.example.com/admin
+  KNOWLEDGE_UPLOAD_APP_URL: https://openshift.example.com/knowledge-upload
+  # Browser-side backend API URLs — the same single-host path prefixes the other
+  # frontends use, fronted by the Routes in chat/routes-backend.yaml.
+  CHAT_BACKEND_API_URL: https://openshift.example.com/chat-api
+  APP_REPOSITORY_BACKEND_API_URL: https://openshift.example.com/apps
+  INGESTION_BACKEND_API_URL: https://openshift.example.com/ingestion
+  SCOPE_MANAGEMENT_BACKEND_API_URL: https://openshift.example.com/scope-management
+  THEME_BACKEND_API_URL: https://openshift.example.com/configuration
+  CONTENT_SECURITY_POLICY_VALUE: "default-src 'self'; img-src https: blob: data:; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' blob: *.openshift.example.com wss://*.openshift.example.com; media-src 'self'; frame-ancestors 'self'; frame-src 'self' https://*.openshift.example.com;"
+  STATIC_BACKGROUND_COLOR: "#F7F7F7"
+  STATIC_TAB_NAME: "Hello OpenShift Knowledge"
+  MAX_FILE_SIZE_IN_MB: "200"
+  # Zitadel OIDC — the same SPA client as chat/admin. Its redirect URIs already
+  # include /knowledge-upload, /knowledge-upload/ and
+  # /knowledge-upload/api/auth/callback/zitadel (registered by setup-zitadel.sh),
+  # so no Zitadel change is needed to serve this app.
+  ZITADEL_ISSUER: https://id.openshift.example.com
+  ZITADEL_CLIENT_ID: "<client-id>"
+  ZITADEL_ORG_ID: "<org-id>"
+  ZITADEL_PROJECT_ID: "<project-id>"
+  # Frontend feature flags, matching the other two UIs.
+  FEATURE_FLAG_ENABLE_SPACES_2_0_UN_11203: "true"
+  FEATURE_FLAG_ENABLE_SPACE_LANDING_PAGE_UN_9930: "true"
+  FEATURE_FLAG_ENABLE_END_USER_SPACE_UN_8855: "true"
+  FEATURE_FLAG_SIDE_MENU_NAVIGATION: "true"
+
+# {} not null — the per-app chart schema rejects null.
+nodeSelector: {}

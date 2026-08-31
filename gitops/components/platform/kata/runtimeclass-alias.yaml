@@ -1,0 +1,46 @@
+# Conduct's charts (sbx-templates, byoc) hardcode
+# runtimeClassName: kata-vm-isolation (QA/AKS naming), so this alias exists to let
+# those charts run unmodified.
+#
+# ############################################################################
+# ##  WARNING: THIS PROVIDES NO VM ISOLATION ON THIS CLUSTER.               ##
+# ##  The handler is plain `runc` — pods using kata-vm-isolation get an      ##
+# ##  ORDINARY CONTAINER, with only namespace/cgroup separation. Despite the ##
+# ##  name, there is NO hypervisor boundary. Do not rely on this RuntimeClass##
+# ##  as a security control here, and do not run untrusted workloads under   ##
+# ##  it expecting VM-grade isolation.                                       ##
+# ############################################################################
+#
+# Why: real peer-pods VM isolation cannot work on ROSA HCP. Smoke-tested
+# 2026-08-24 with the handler set to `kata-remote`; a pod stuck in
+# ContainerCreating for 4 minutes and kubelet reported:
+#
+#   Failed to create pod sandbox: rpc error: failed to find runtime handler
+#   kata-remote from runtime list map[crun:... runc:...]
+#
+# CRI-O on the nodes only knows crun and runc. Registering the kata-remote shim
+# is a NODE-level change, which needs the Machine Config Operator — and an HCP
+# guest cluster has no MCO. The operator's cloud-api-adaptor DaemonSet
+# (osc-caa-ds) does run 3/3, but that only covers the VM side of peer-pods; with
+# no node shim the sandbox can never be created, and `kataconfig` accordingly
+# reports readyNodeCount: 0.
+#
+# So the choice was: leave it on kata-remote and have every such pod hang in
+# ContainerCreating forever (awful to debug cold), or point it at runc so the
+# charts function. We took runc, matching what QA does with its own KinD stub.
+# Genuine VM isolation needs ROSA Classic, where MCO can install the runtime.
+apiVersion: node.k8s.io/v1
+kind: RuntimeClass
+metadata:
+  name: kata-vm-isolation
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    # Deliberately explicit, so `oc get runtimeclass -o yaml` shows the caveat too.
+    unique.ag/isolation: "none-runc-shim-no-vm-boundary"
+    unique.ag/isolation-note: >-
+      Handler is runc: no hypervisor boundary. Real peer-pods VM isolation is
+      impossible on ROSA HCP (no MCO to install the kata-remote node shim).
+handler: runc
+# No podFixed overhead: runc has none of the peer-pods VM overhead the previous
+# kata-remote handler needed (350Mi / 250m), and leaving it inflated would
+# silently waste schedulable capacity on every sandbox pod.

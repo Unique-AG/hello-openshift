@@ -1,0 +1,42 @@
+# backend-service-configuration — chart oci://uniquecr.azurecr.io/helm/configuration
+# 2026.34.4 (uniquecr OCI repo cred). Multi-source: chart + git values. Wave 6.
+# Deployed into `unique`. Serves remote feature-flag config read by node-chat and
+# scope-management at startup.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: backend-service-configuration
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+spec:
+  project: hello-openshift
+  sources:
+    - repoURL: uniquecr.azurecr.io
+      chart: helm/configuration
+      targetRevision: 2026.34.4
+      helm:
+        releaseName: backend-service-configuration
+        skipSchemaValidation: true
+        valueFiles:
+          - $values/gitops/environments/sbx/chat/values/configuration.yaml
+    - repoURL: git@github.com:Unique-AG/hello-openshift.git
+      targetRevision: deploy
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: unique
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

@@ -1,0 +1,65 @@
+# sbx-gateway (chart helm/sbx-gateway 2026.34.4) — the MITM egress proxy that
+# every Conduct sandbox is forced through.
+#
+# Previously skipped here: the image used to live only in the private
+# uniqueapp.azurecr.io dev registry with no pull-through, so there was no way to
+# get it. As of 2026.34.4 it is published as uniquecr.azurecr.io/unique/sbx-gateway
+# and therefore reachable through our ECR pull-through cache — digest
+# sha256:c1b267e0ba015ac1... verified, matching the chart's own pin.
+#
+# Why it matters for Conduct: the sbx-templates runtime hardcodes
+# HTTP_PROXY/HTTPS_PROXY at http://sbx-gateway.sbx.svc.cluster.local:3128, and the
+# sandbox CiliumNetworkPolicy allows egress ONLY via this proxy. Without the
+# gateway, sandboxes would have no working outbound path at all.
+#
+# Adapted for this cluster:
+#   - image pulled through the ECR PTC (registry/repository split) instead of
+#     straight from ACR, since the worker nodes authenticate to ECR via IAM and
+#     have no ACR pull secret.
+#   - the chart generates its own MITM CA into the `egress-mitm-ca` Secret
+#     (mitmCa.enabled, 10y validity) — nothing to pre-create. Rotate by deleting
+#     that Secret and re-syncing.
+#   - internalServices dependencies point at the chat/ingestion backends in ns
+#     `unique` (this deployment keeps them there, not in a per-service namespace).
+
+image:
+  registry: harbor.openshift.example.com
+  repository: uniquecr/unique/sbx-gateway
+  # Pull by tag through the PTC; the chart's stamped digest refers to the Azure
+  # path, and mixing a foreign digest with the ECR registry would not resolve.
+  useDigest: false
+  tag: "2026.34.4"
+
+# No ACR pull secret on this cluster — the ECR pull-through cache plus the
+# worker role's ECR permissions (terraform/2-cluster/ecr-worker-iam.tf) cover it.
+imagePullSecrets: []
+
+replicaCount: 1
+
+prometheus:
+  enabled: false
+
+# The chart's own MITM CA generation. Produces the `egress-mitm-ca` Secret that
+# sbx-templates mounts into every sandbox as a trusted root.
+mitmCa:
+  enabled: true
+  secretName: egress-mitm-ca
+  validityDays: 3650
+
+# Where the gateway proxies to. Both backends live in `unique` here.
+internalServices:
+  dependencies:
+    chat:
+      namespace: unique
+    ingestion:
+      namespace: unique
+
+# The chart's NetworkPolicy defaults assume a Kong/Cilium topology that does not
+# match this cluster; Cilium is the CNI and the sandbox side already carries an
+# explicit CiliumNetworkPolicy. Leave the chart's policy off rather than ship
+# rules whose selectors were never verified here.
+networkPolicy:
+  enabled: false
+
+# {} not null — the per-app chart schema rejects null.
+nodeSelector: {}

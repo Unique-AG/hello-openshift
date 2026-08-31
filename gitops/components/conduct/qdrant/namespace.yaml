@@ -1,0 +1,8 @@
+# QA runs Qdrant in `finance-gpt` — mirrored here.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: finance-gpt
+  labels:
+    argocd.argoproj.io/managed-by: openshift-gitops
+    unique.ag/layer: conduct

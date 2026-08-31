@@ -1,0 +1,38 @@
+# Redis replication (Opstree operator) — replaces the old spotahome
+# RedisFailover, which the installed operator never reconciled.
+# Auth comes from the `redis-auth` secret synced by an ExternalSecret
+# (declared per environment, wave before this CR).
+#
+# Verify the image tag against the operator's supported matrix at
+# deploy time: oc get csv -n openshift-operators | grep redis
+apiVersion: redis.redis.opstreelabs.in/v1beta2
+kind: RedisReplication
+metadata:
+  name: hello-openshift-redis
+  namespace: hello-openshift-data
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  clusterSize: 2
+  kubernetesConfig:
+    image: quay.io/opstree/redis:v7.4.8
+    imagePullPolicy: IfNotPresent
+    redisSecret:
+      name: redis-auth
+      key: password
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  storage:
+    volumeClaimTemplate:
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 5Gi
+        storageClassName: gp3-csi

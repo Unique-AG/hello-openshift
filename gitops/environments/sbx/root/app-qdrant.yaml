@@ -1,0 +1,55 @@
+# Qdrant (Conduct dependency) — mirrors QA (3-system/qdrant/app.yaml,
+# app name "qdrant-2", release "qdrant") into `finance-gpt`.
+# QA pins the chart via its private ACR mirror digest (# 1.18.2);
+# substituted with the same version from the public qdrant-helm repo.
+# The qdrant-extras source (private infra repo) is SKIPPED — see
+# gitops/components/conduct/README.md.
+# prune: false — pruning deletes vector collections.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: qdrant
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  project: hello-openshift
+  sources:
+    - repoURL: https://qdrant.github.io/qdrant-helm
+      chart: qdrant
+      targetRevision: 1.18.2
+      helm:
+        releaseName: qdrant
+        valueFiles:
+          - $values/gitops/environments/sbx/conduct/values/qdrant.yaml
+    - repoURL: git@github.com:Unique-AG/hello-openshift.git
+      targetRevision: deploy
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: finance-gpt
+  # volumeClaimTemplates is an atomic list: the apiserver's SSA
+  # defaulting inside it (apiVersion/kind/volumeMode/status) reads as a
+  # perma-diff under Argo's legacy merge diff. SSA dry-run == live.
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      jqPathExpressions:
+        - .spec.volumeClaimTemplates[]?.apiVersion
+        - .spec.volumeClaimTemplates[]?.kind
+        - .spec.volumeClaimTemplates[]?.spec.volumeMode
+        - .spec.volumeClaimTemplates[]?.status
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

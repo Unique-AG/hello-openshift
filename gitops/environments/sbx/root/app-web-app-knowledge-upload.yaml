@@ -1,0 +1,46 @@
+# web-app-knowledge-upload — the Unique knowledge-base upload UI (chart
+# oci://uniquecr.azurecr.io/helm/knowledge-upload-app 2026.34.4, pulled via the
+# ArgoCD uniquecr OCI repo credential in root/external-secret-argocd-uniquecr.yaml).
+# Multi-source: chart + git values. Wave 6, with the other frontends. Served at
+# /knowledge-upload via the Route in the chat infra app
+# (chat/route-knowledge-upload.yaml).
+#
+# Why: the chat side menu links to /knowledge-upload ("Knowledge Base"), and with
+# nothing behind that path the router returned "Application is not available".
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: web-app-knowledge-upload
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+spec:
+  project: hello-openshift
+  sources:
+    - repoURL: uniquecr.azurecr.io
+      chart: helm/knowledge-upload-app
+      targetRevision: 2026.34.4
+      helm:
+        releaseName: web-app-knowledge-upload
+        valueFiles:
+          - $values/gitops/environments/sbx/chat/values/web-app-knowledge-upload.yaml
+    - repoURL: git@github.com:Unique-AG/hello-openshift.git
+      targetRevision: deploy
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: unique
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

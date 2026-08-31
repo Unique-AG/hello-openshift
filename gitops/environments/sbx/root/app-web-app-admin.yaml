@@ -1,0 +1,47 @@
+# web-app-admin — the Unique admin frontend (chart oci://uniquecr.azurecr.io/
+# helm/admin-app 2026.34.4, pulled via the ArgoCD uniquecr OCI repo credential in
+# root/external-secret-argocd-uniquecr.yaml). Multi-source: chart + git values.
+# Wave 6 (after chat infra wave 5), same as web-app-chat. Served at /admin via
+# the OpenShift Route in the chat infra app (chat/route-admin.yaml).
+#
+# Why it exists: chat authentication is fully working, but the app has nothing
+# provisioned (no scopes, no space, both seeded assistants have `access: []`), so
+# the chat UI renders its own 403. This is the supported UI for creating a space
+# and granting access.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: web-app-admin
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+spec:
+  project: hello-openshift
+  sources:
+    - repoURL: uniquecr.azurecr.io
+      chart: helm/admin-app
+      targetRevision: 2026.34.4
+      helm:
+        releaseName: web-app-admin
+        valueFiles:
+          - $values/gitops/environments/sbx/chat/values/web-app-admin.yaml
+    - repoURL: git@github.com:Unique-AG/hello-openshift.git
+      targetRevision: deploy
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: unique
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

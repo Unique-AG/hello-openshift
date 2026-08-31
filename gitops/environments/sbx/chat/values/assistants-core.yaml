@@ -1,0 +1,73 @@
+# assistants-core (chart helm/assistants-core 2026.34.4) — the sandbox
+# orchestrator / AI service. Flattened from the reference deployment (defaults/ai-services/
+# assistants-core.yaml + sbx/values/ai-services/assistants-core.yaml), adapted:
+#   - image via the ECR pull-through cache.
+#   - LLM inference via the in-cluster LiteLLM proxy (litellm.system.svc:4000).
+#   - API_BASE -> chat.unique.svc:8093/public (in-cluster).
+#   - sandboxConfig router -> the agent-sandbox controller in `system` (this
+#     cluster runs the controller there, not `unique`).
+#   - app-specific secrets from extraEnvSecrets `assistants-core-secrets`,
+#     materialized from the USER-OWNED ASM secret
+#     hello-openshift/sbx/assistants-core-secrets. BLOCKED until populated.
+
+image:
+  registry: harbor.openshift.example.com
+  repository: uniquecr/ai-service-assistants-core
+  useDigest: false
+  tag: "2026.34.4"
+
+env:
+  CORS_ALLOWED_ORIGINS: https://openshift.example.com
+  ZITADEL_PROJECT_ID: "<project-id>"
+  UNIQUE_INSTALLATION_ID: openshift.example.com
+  AWS_REGION: eu-central-2
+  LLM_PROVIDER: litellm
+  LITELLM_ENDPOINT: http://litellm.system.svc:4000
+  STORAGE_PROVIDER: s3
+  API_BASE: http://chat.unique.svc:8093/public
+
+# Wire the sandbox orchestrator to the agent-sandbox controller router. On this
+# cluster the controller runs in `system` (agent-sandbox-controller app), so the
+# router service namespace is `system`.
+sandboxConfig:
+  enabled: true
+  namespace: sbx
+  template: unique-polyagent-001
+  router:
+    host:
+      fromKubernetesService:
+        name: agent-sandbox-controller-router-svc
+        namespace: system
+        podPort: 8080
+        podSelectorLabels:
+          k8s:app.kubernetes.io/name: agent-sandbox-controller
+          k8s:app.kubernetes.io/component: router
+    port: 8080
+
+prometheus:
+  enabled: false
+
+secretProvider: {}
+
+serviceAccount:
+  enabled: true
+  workloadIdentity:
+    enabled: false
+
+podAnnotations:
+  reloader.stakater.com/auto: "true"
+
+nodeSelector: {}
+
+extraEnvSecrets:
+  - assistants-core-secrets
+
+replicaCount: 1
+
+resources:
+  limits:
+    cpu: 1000m
+    memory: 2Gi
+  requests:
+    cpu: 250m
+    memory: 1Gi

@@ -1,0 +1,41 @@
+# RabbitMQ (Conduct dependency) — mirrors QA
+# (3-system/rabbitmq/app.yaml): bitnami chart 16.0.14 into `eventing`.
+# Credentials/load-definition ExternalSecrets ship with the conduct
+# app (wave 4); wave 5 so they exist before the broker starts.
+# prune: false — pruning a message broker loses queues/messages.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: rabbitmq
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  project: hello-openshift
+  sources:
+    - repoURL: https://charts.bitnami.com/bitnami
+      chart: rabbitmq
+      targetRevision: 16.0.14
+      helm:
+        valueFiles:
+          - $values/gitops/environments/sbx/conduct/values/rabbitmq.yaml
+    - repoURL: git@github.com:Unique-AG/hello-openshift.git
+      targetRevision: deploy
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: eventing
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

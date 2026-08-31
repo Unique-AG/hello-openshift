@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+# Harbor's supporting objects only, and only the environment-agnostic ones --
+# the Route carries the cluster apps domain and therefore lives in the
+# environment overlay (environments/<env>/platform/route-harbor.yaml).
+#
+# The chart itself is a separate ArgoCD
+# Application (app-harbor.yaml) at a later sync wave, so the bucket and both
+# secrets already exist by the time Harbor's pods start.
+resources:
+  - namespace.yaml
+  - obc.yaml
+  - external-secret-s3.yaml
+  - external-secret-admin.yaml
+  - scc-nonroot.yaml
+  - service-registry-elb.yaml

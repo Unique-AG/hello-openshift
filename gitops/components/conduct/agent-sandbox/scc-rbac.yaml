@@ -1,0 +1,16 @@
+# The controller chart pins runAsUser/fsGroup 65532 (distroless
+# nonroot); restricted-v2 rejects fixed UIDs outside the namespace
+# range — nonroot-v2 allows any non-root UID.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: agent-sandbox-nonroot-scc
+  namespace: system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:nonroot-v2
+subjects:
+  - kind: ServiceAccount
+    name: agent-sandbox-controller
+    namespace: system

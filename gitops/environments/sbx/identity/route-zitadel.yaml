@@ -1,0 +1,25 @@
+# Public route through CloudFront -> VPC origin -> ALB -> router,
+# modeled on platform/route-hubble-ui.yaml: TLS terminates upstream,
+# traffic reaches the router as plain HTTP:80, so this is a non-TLS
+# Route (a tls/redirect policy would loop). Zitadel itself runs with
+# TLS.Enabled=false and ExternalSecure=true (values/zitadel.yaml).
+# Replaces QA's Kong HTTPRoutes (extraManifests in their values).
+#
+# The chart names its single service port "http2-server" (8080, h2c).
+# The router talks HTTP/1.1 to it — zitadel multiplexes HTTP/1.1 and
+# h2c on the same port, so console/login/OIDC work; gRPC does not
+# (it needs end-to-end HTTP/2), same trade-off QA accepts behind Kong.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: zitadel
+  namespace: zitadel
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  host: id.openshift.example.com
+  to:
+    kind: Service
+    name: zitadel
+  port:
+    targetPort: http2-server

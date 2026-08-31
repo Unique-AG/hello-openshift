@@ -1,0 +1,21 @@
+# The Unique per-app charts pin a fixed non-root UID (1000) at both the pod and
+# container level — a mergeOverwrite default in the `base` subchart that a null
+# override cannot strip. OpenShift's default restricted-v2 SCC allocates UIDs
+# from the namespace range and rejects a fixed 1000; nonroot-v2 allows any
+# non-root UID. Granted to every service account in `unique` (the frontend runs
+# as `default`; each backend has its own chart-created SA).
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: chat-nonroot-scc
+  namespace: unique
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:nonroot-v2
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: system:serviceaccounts:unique

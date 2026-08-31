@@ -1,0 +1,107 @@
+# web-app-admin (chart helm/admin-app 2026.34.4) — the Unique admin UI, served at
+# https://openshift.example.com/admin. Added 2026-08-21: the chat UI returns its
+# own 403 because nothing is provisioned in the app (no scopes, `userSpaces: []`,
+# both seeded assistants carry `access: []`) — authentication itself is fully
+# working. This is the supported surface for creating spaces and granting access.
+#
+# Flattened from the reference deployment's three value layers (defaults/web-apps/admin.yaml +
+# sbx/values/web-apps/{_all,admin}.yaml), adapted the same way as
+# web-app-chat.yaml:
+#   - domain -> openshift.example.com, single host with path-based routing
+#     (there is no api.* host here, so browser-side API URLs share the host).
+#   - image via the ECR pull-through cache (registry/repository split, pull by
+#     tag; digest verified present:
+#     uniquecr/web-app-admin:2026.34.4 = sha256:9ccf62eda9d6…).
+#   - chart pinned to 2026.34.4 to match every other app in this slice
+#     (the reference deployment runs 2026.31.0).
+#   - Kong/Gateway-API HTTPRoutes DISABLED (no Gateway API CRDs on this cluster);
+#     exposure is the OpenShift Route in chat/route-admin.yaml.
+#   - nodeSelector {} — the reference deployment's scalability/lifecycle labels don't exist here.
+
+# Static frontend: no /metrics endpoint, so the base ServiceMonitor would produce
+# a permanent TargetDown.
+prometheus:
+  enabled: false
+
+image:
+  registry: harbor.openshift.example.com
+  repository: uniquecr/web-app-admin
+  useDigest: false
+  tag: "2026.34.4"
+
+# Exposure is an OpenShift Route, not the chart's Kong HTTPRoutes. Disable every
+# route path so no gateway.networking.k8s.io object is rendered (the base chart
+# hard-fails on missing Gateway API CRDs when any path is enabled).
+routes:
+  hostname: openshift.example.com
+  pathPrefix: /admin
+  auth:
+    jwt: false
+  paths:
+    default:
+      enabled: false
+    root:
+      enabled: false
+
+replicaCount: 2
+
+strategy:
+  type: Recreate
+
+resources:
+  limits:
+    cpu: 300m
+    memory: 500Mi
+  requests:
+    cpu: 300m
+    memory: 450Mi
+
+probes:
+  liveness:
+    httpGet:
+      path: /admin/api/health
+      port: http
+    initialDelaySeconds: 5
+  readiness:
+    httpGet:
+      path: /admin/api/health
+      port: http
+    initialDelaySeconds: 5
+
+podAnnotations:
+  reloader.stakater.com/auto: "true"
+
+env:
+  MAX_HEAP_MB: 350
+  SELF_URL: https://openshift.example.com/admin
+  CHAT_APP_URL: https://openshift.example.com/chat
+  ADMIN_APP_URL: https://openshift.example.com/admin
+  KNOWLEDGE_UPLOAD_APP_URL: https://openshift.example.com/knowledge-upload
+  # Browser-side backend API URLs — same single-host path prefixes the chat
+  # frontend uses, fronted by the Routes in chat/routes-backend.yaml.
+  CHAT_BACKEND_API_URL: https://openshift.example.com/chat-api
+  APP_REPOSITORY_BACKEND_API_URL: https://openshift.example.com/apps
+  INGESTION_BACKEND_API_URL: https://openshift.example.com/ingestion
+  SCOPE_MANAGEMENT_BACKEND_API_URL: https://openshift.example.com/scope-management
+  THEME_BACKEND_API_URL: https://openshift.example.com/configuration
+  CONTENT_SECURITY_POLICY_VALUE: "default-src 'self'; img-src https: blob: data:; script-src 'self' 'unsafe-inline' blob:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' blob: *.openshift.example.com wss://*.openshift.example.com; media-src 'self'; frame-ancestors 'self'; frame-src 'self' https://*.openshift.example.com;"
+  STATIC_BACKGROUND_COLOR: "#F7F7F7"
+  STATIC_TAB_NAME: "Hello OpenShift Admin"
+  # Zitadel OIDC — the same SPA client as chat; its redirect URIs already include
+  # /admin, /admin/ and /admin/api/auth/callback/zitadel (registered by
+  # setup-zitadel.sh), so no Zitadel change is needed to serve this app.
+  ZITADEL_ISSUER: https://id.openshift.example.com
+  ZITADEL_CLIENT_ID: "<client-id>"
+  ZITADEL_ORG_ID: "<org-id>"
+  ZITADEL_PROJECT_ID: "<project-id>"
+  # Frontend feature flags, matching web-app-chat.yaml so both UIs agree on the
+  # spaces model.
+  FEATURE_FLAG_ENABLE_SPACES_2_0_UN_11203: "true"
+  FEATURE_FLAG_ENABLE_SPACE_LANDING_PAGE_UN_9930: "true"
+  FEATURE_FLAG_ENABLE_END_USER_SPACE_UN_8855: "true"
+  FEATURE_FLAG_ABOUT_SPACE_SECTION_UN_10270: "true"
+  FEATURE_FLAG_SIDE_MENU_NAVIGATION: "true"
+  FEATURE_FLAG_USER_API_KEY_GENERATION_UN_11416: "true"
+
+# {} not null — the per-app chart schema rejects null.
+nodeSelector: {}

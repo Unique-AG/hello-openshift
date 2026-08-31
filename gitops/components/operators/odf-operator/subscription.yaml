@@ -1,0 +1,16 @@
+# OpenShift Data Foundation — deployed in standalone Multicloud Object
+# Gateway (NooBaa) mode as the in-cluster S3 endpoint. Replaces the
+# discontinued MinIO community operator (FOSS MinIO archived 2026-04).
+# NOTE: ODF is a separate Red Hat subscription (per core-pair) —
+# entitlement is contractual, not enforced at install time.
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: odf-operator
+  namespace: openshift-storage
+spec:
+  channel: stable-4.19
+  name: odf-operator
+  source: redhat-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic

@@ -1,0 +1,40 @@
+# backend-service-app-repository — chart oci://uniquecr.azurecr.io/helm/app-repository 2026.34.4 (uniquecr OCI repo
+# cred). Multi-source: chart + git values. Wave 6. Deployed into `unique`.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: backend-service-app-repository
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+spec:
+  project: hello-openshift
+  sources:
+    - repoURL: uniquecr.azurecr.io
+      chart: helm/app-repository
+      targetRevision: 2026.34.4
+      helm:
+        releaseName: backend-service-app-repository
+        skipSchemaValidation: false
+        valueFiles:
+          - $values/gitops/environments/sbx/chat/values/app-repository.yaml
+    - repoURL: git@github.com:Unique-AG/hello-openshift.git
+      targetRevision: deploy
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: unique
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

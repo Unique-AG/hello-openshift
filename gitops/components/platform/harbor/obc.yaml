@@ -1,0 +1,21 @@
+# Registry blob storage for Harbor, on the in-cluster ODF/NooBaa S3.
+#
+# NooBaa provisions the bucket and mints a dedicated access key pair, published
+# into a ConfigMap (bucket name/host/port) and a Secret (AWS_ACCESS_KEY_ID /
+# AWS_SECRET_ACCESS_KEY), both named after this claim.
+#
+# Consequence worth knowing: Harbor's availability now depends on ODF. If NooBaa
+# is down, Harbor cannot serve blobs, and because Harbor fronts every non-
+# bootstrap image in the cluster, that becomes a cluster-wide image-pull outage.
+# That coupling was chosen deliberately; the bootstrap tier (Cilium, ODF itself,
+# Harbor's own images) is exempt precisely so this cannot deadlock.
+apiVersion: objectbucket.io/v1alpha1
+kind: ObjectBucketClaim
+metadata:
+  name: harbor-registry
+  namespace: harbor
+spec:
+  # bucketName, NOT generateBucketName: the Harbor chart values must name this
+  # bucket, and a generated name is not knowable at commit time.
+  bucketName: harbor-registry
+  storageClassName: openshift-storage.noobaa.io

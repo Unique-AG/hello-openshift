@@ -1,0 +1,99 @@
+# Declarative databases beyond the bootstrap one, owned by app_user
+# (created by initdb) unless noted. CloudNativePG reconciles these
+# once the cluster is ready.
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: hello-openshift-postgres-chat
+  namespace: hello-openshift-data
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  name: chat
+  owner: app_user
+  cluster:
+    name: hello-openshift-postgres
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: hello-openshift-postgres-ingestion
+  namespace: hello-openshift-data
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  name: ingestion
+  owner: app_user
+  cluster:
+    name: hello-openshift-postgres
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: hello-openshift-postgres-scope-management
+  namespace: hello-openshift-data
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  name: scope_management
+  owner: app_user
+  cluster:
+    name: hello-openshift-postgres
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: hello-openshift-postgres-theme
+  namespace: hello-openshift-data
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  name: theme
+  owner: app_user
+  cluster:
+    name: hello-openshift-postgres
+---
+# configuration-backend (feature-flag / theme service). the reference deployment points this
+# service at a DB named `theme`; here it gets a self-documenting `configuration`
+# database (backend-service-configuration wires DATABASE_URL to it).
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: hello-openshift-postgres-configuration
+  namespace: hello-openshift-data
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  name: configuration
+  owner: app_user
+  cluster:
+    name: hello-openshift-postgres
+---
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: hello-openshift-postgres-litellm
+  namespace: hello-openshift-data
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  name: litellm
+  owner: app_user
+  cluster:
+    name: hello-openshift-postgres
+---
+# Owned by the managed `zitadel` role (see postgresql.yaml): owner
+# rights stand in for the grants zitadel's init job would create.
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: hello-openshift-postgres-zitadel
+  namespace: hello-openshift-data
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  name: zitadel
+  owner: zitadel
+  cluster:
+    name: hello-openshift-postgres

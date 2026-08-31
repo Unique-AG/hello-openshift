@@ -1,0 +1,19 @@
+# Redis Operator (Opstree / OT-CONTAINER-KIT)
+# https://github.com/OT-CONTAINER-KIT/redis-operator
+#
+# The community-operators package "redis-operator" is the Opstree
+# operator (the spotahome one is unmaintained and never packaged).
+# Manages RedisReplication/RedisSentinel CRs.
+# Replaces AWS ElastiCache Redis.
+---
+apiVersion: operators.coreos.com/v1alpha1
+kind: Subscription
+metadata:
+  name: redis-operator
+  namespace: openshift-operators
+spec:
+  channel: stable
+  name: redis-operator
+  source: community-operators
+  sourceNamespace: openshift-marketplace
+  installPlanApproval: Automatic

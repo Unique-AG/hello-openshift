@@ -1,0 +1,122 @@
+# Agent Sandbox controller (kubernetes-sigs/agent-sandbox packaged by
+# Unique). Wave 5: after the conduct app has created the `system`/`sbx`
+# namespaces.
+#
+# Bumped 0.4.5-rc.1 -> 0.4.6-rc.1 to enable Conduct: the sbx-templates chart sets
+# `sandboxTemplate.service: true` (a headless Service per sandbox, so DNS
+# fallback routing keeps working alongside X-Sandbox-Pod-IP) and that field needs
+# controller >= 0.4.6-rc.1. Verified against the live cluster: the v0.4.5 CRD's
+# SandboxTemplate spec exposes only [envVarsInjectionPolicy, networkPolicy,
+# networkPolicyManagement, podTemplate, volumeClaimTemplates] — `service` is
+# absent, so the older CRD would silently PRUNE it.
+# Note: oci:// sources need ArgoCD >= 3.1 (native OCI support) — QA
+# runs the same pattern.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: agent-sandbox-controller
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  project: hello-openshift
+  source:
+    repoURL: oci://ghcr.io/unique-ag/helm-charts/agent-sandbox-controller
+    path: .
+    targetRevision: sha256:2eca7f113777f44129562cdcfaaac2d2132496c8b338d0ae5e0b0c62fdc9f11e # 0.4.6-rc.1
+    helm:
+      valuesObject:
+        # OpenShift-only (not in QA): the restricted-v2 SCC assigns
+        # UIDs/GIDs/fsGroup from the namespace range; the chart's fixed
+        # IDs (65532 controller / 1000 router) would be rejected by SCC
+        # admission. `null` removes the keys from the chart defaults.
+        podSecurityContext:
+          runAsUser: null
+          runAsGroup: null
+          fsGroup: null
+        securityContext:
+          runAsUser: null
+          runAsGroup: null
+        router:
+          # ROUTER IMAGE IS BROKEN UPSTREAM — deliberately NOT overridden here.
+          #
+          # The chart pins the router to
+          # us-central1-docker.pkg.dev/k8s-staging-images/agent-sandbox/sandbox-router
+          # v20260514-v0.4.6@sha256:15213198..., which no longer exists: kubernetes
+          # STAGING registries garbage-collect. The v0.4.5 digest the previous
+          # ReplicaSet used is gone too, so the router pods that are still Running
+          # only survive on node-cached layers and would fail on any reschedule.
+          # This is pre-existing fragility, not a consequence of the 0.4.6 bump.
+          #
+          # Every escape route was checked and none works through values alone:
+          #   - v0.5.x router images DO pull, but every one of them refuses to
+          #     start without ROUTER_AUTH_TOKEN or ALLOW_UNAUTHENTICATED_ROUTER
+          #     ("RuntimeError: ROUTER_AUTH_TOKEN must be set to start the sandbox
+          #     router securely"), and the chart's `router` block exposes no env /
+          #     extraEnv key, so neither can be set.
+          #   - the router is not published on the stable registry.k8s.io (only the
+          #     controller is), so there is no durable source to pin.
+          #   - unique-ag publishes only 0.4.2/0.4.5/0.4.6-rc.1 controller charts,
+          #     so the controller cannot be aligned to a v0.5.x router either.
+          #
+          # UPDATE 2026-08-27, after the cluster rebuild: this stopped being
+          # cosmetic. Previously the router pods kept running on node-cached
+          # layers, so the Service still worked and the app stayed Healthy. A
+          # rebuilt cluster has no such cache: both pods sit in ImagePullBackOff,
+          # the Deployment never reaches its progress deadline, the app reports
+          # Degraded -- and because the root app-of-apps holds a wave until the
+          # previous one is healthy, ALL of wave 6 (every chat backend and web
+          # app) was never created. One dead upstream image stalled the platform.
+          #
+          # So the router is DISABLED. It is not a downgrade: with 0/2 pods
+          # available it was already serving nothing on this cluster, and
+          # `enabled: false` drops the Deployment/Service/NetworkPolicy so the
+          # app can report Healthy and the remaining waves proceed. The Python
+          # SDK tunnel mode is the only consumer, and there is none here yet;
+          # sbx-templates routes via X-Sandbox-Pod-IP with DNS fallback.
+          #
+          # Re-checked 2026-08-27: the pinned digest is now a hard 404 upstream
+          # (kubernetes staging registries GC), while the repository carries 796
+          # tags including same-day v0.5.6 builds. Repinning still does NOT work
+          # on its own -- v0.5.x refuses to start without ROUTER_AUTH_TOKEN or
+          # ALLOW_UNAUTHENTICATED_ROUTER and the chart exposes no env key.
+          #
+          # The durable fix is unchanged in shape but now has a home: ship our own
+          # router Deployment/Service with the env set explicitly and the image
+          # mirrored into HARBOR (which replaced the ECR pull-through cache on
+          # 2026-08-27) so an upstream GC cannot break it again. That is exactly
+          # the failure Harbor was introduced to absorb.
+          enabled: false
+          podSecurityContext:
+            runAsUser: null
+            runAsGroup: null
+            fsGroup: null
+          containerSecurityContext:
+            runAsUser: null
+            runAsGroup: null
+          networkPolicy:
+            # SKIPPED vs QA: QA enables this with an ingress allow-list
+            # for assistants-core (python namespace — no such workload
+            # here yet). More importantly the chart's egress rule
+            # hardcodes DNS to kube-system/kube-dns, which doesn't
+            # exist on OpenShift (DNS runs in openshift-dns), so the
+            # policy would break router DNS. Revisit with a
+            # CiliumNetworkPolicy once sandbox consumers exist.
+            enabled: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: system
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

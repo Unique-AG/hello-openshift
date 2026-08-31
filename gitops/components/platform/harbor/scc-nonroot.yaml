@@ -1,0 +1,33 @@
+# Harbor pins fsGroup and runAsUser to 10000, which restricted-v2 rejects:
+#
+#   pods "harbor-core-..." is forbidden: unable to validate against any security
+#   context constraint: [... restricted-v2: .spec.securityContext.fsGroup:
+#   Invalid value: []int64{10000}: 10000 is not an allowed group ...]
+#
+# The symptom is easy to misread: all five Deployments and both StatefulSets are
+# created and report 0/1 with NO pods at all, so `oc get pods -n harbor` is empty
+# and it looks like the chart deployed nothing. The evidence is only in the
+# FailedCreate events on the ReplicaSets/StatefulSets.
+#
+# nonroot-v2 is the minimal grant that works -- runAsUser MustRunAsNonRoot plus
+# fsGroup RunAsAny -- so Harbor keeps its intended UIDs without the privilege
+# escalation that anyuid would bring. Harbor genuinely runs non-root, so nothing
+# here is being waived.
+#
+# Bound to the namespace's `default` ServiceAccount because the chart does not
+# create per-component service accounts and every workload uses `default`. That
+# is broader than ideal -- it covers any pod in this namespace -- but the harbor
+# namespace runs only Harbor.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: harbor-scc-nonroot
+  namespace: harbor
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:nonroot-v2
+subjects:
+  - kind: ServiceAccount
+    name: default
+    namespace: harbor

@@ -1,0 +1,109 @@
+# Harbor as the cluster's image registry, replacing the ECR pull-through cache.
+#
+# Role: four proxy-cache projects (uniquecr, dockerhub, quay, ghcr) so image
+# pulls stop reaching the internet directly. ACR remains the source of truth for
+# Unique images; Harbor caches on first request.
+#
+# Chart: harbor/harbor 1.19.2 (Harbor 2.15.2) from https://helm.goharbor.io.
+# Harbor's OWN images come from docker.io and must NEVER be routed through
+# Harbor -- it cannot serve the images it is built from. Same for Cilium and
+# ODF/NooBaa. That bootstrap tier is exempt by design, not by omission.
+
+# The canonical endpoint clients use, served by the INTERNAL CLASSIC ELB in
+# components/platform/harbor/service-registry-elb.yaml -- not by the OpenShift
+# Route. The cluster's ingress NLB cannot carry image pulls reliably (AWS NLBs
+# black-hole traffic that lands back on the originating instance, and every
+# worker is a target; measured 0/6 successes from one node).
+#
+# This MUST be the registry host, not the apps-domain Route: Harbor puts
+# externalURL in the WWW-Authenticate realm it hands back for /v2/, so a client
+# is redirected there to collect its pull token. Pointing it at the Route would
+# send every pull's auth round-trip back over the unreliable NLB path.
+#
+# Unlike the apps domain, this hostname is STABLE across rebuilds -- it is our
+# own domain plus a Route53 private zone, so none of the image references that
+# use it need rewriting after a rebuild.
+externalURL: https://harbor.openshift.example.com
+
+expose:
+  # The Route is defined by hand in components/platform/harbor/route.yaml --
+  # this chart's "route" type is a Gateway API HTTPRoute, not an OpenShift Route.
+  type: clusterIP
+  tls:
+    # the Route terminates TLS at the edge using the cluster's Let's Encrypt
+    # wildcard, so Harbor itself speaks plain HTTP behind the router
+    enabled: false
+
+# Never the chart defaults ("Harbor12345" / "not-a-secure-key").
+existingSecretAdminPassword: harbor-admin
+existingSecretAdminPasswordKey: HARBOR_ADMIN_PASSWORD
+existingSecretSecretKey: harbor-admin
+
+persistence:
+  enabled: true
+  imageChartStorage:
+    type: s3
+    # NooBaa hands out a presigned URL on its own internal endpoint; a client
+    # outside the cluster network cannot follow it, so the registry must stream
+    # blobs itself rather than redirect.
+    disableredirect: true
+    s3:
+      existingSecret: harbor-registry-s3
+      bucket: harbor-registry
+      regionendpoint: https://s3.openshift-storage.svc
+      region: us-east-1
+      # NooBaa serves a self-signed certificate on the in-cluster endpoint
+      secure: true
+      skipverify: true
+      v4auth: true
+  persistentVolumeClaim:
+    # database and redis stay chart-internal on block storage; only the large
+    # blob store goes to S3
+    database:
+      size: 8Gi
+    redis:
+      size: 2Gi
+    jobservice:
+      jobLog:
+        size: 2Gi
+
+# Recreate, not the chart's default RollingUpdate. jobservice mounts a
+# ReadWriteOnce gp3 PVC, and a rolling update deadlocks on it: the new pod cannot
+# attach the volume until the old pod releases it, while the Deployment keeps the
+# old pod until the new one is Ready. The new pod sits in ContainerCreating with
+#   Multi-Attach error for volume "pvc-..." Volume is already used by pod(s) ...
+# until the progress deadline expires, the app reports Degraded -- and since the
+# root app-of-apps holds a wave until the previous is healthy, everything behind
+# Harbor's wave 3 stalls. The chart's own comment says to use Recreate when RWM
+# volumes are unavailable, which is the case on gp3.
+updateStrategy:
+  type: Recreate
+
+database:
+  type: internal
+redis:
+  type: internal
+
+jobservice:
+  # Job logs to stdout rather than the PVC: they are then readable with
+  # `oc logs`, survive nothing (which is fine for a sandbox), and remove one
+  # more RWO volume from the update path.
+  jobLoggers:
+    - stdout
+
+# Vulnerability scanning is off: this is a caching proxy in a dev sandbox, and
+# Trivy would add a ~1Gi DB download plus its own PVC for no benefit here.
+trivy:
+  enabled: false
+metrics:
+  enabled: false
+
+# Modest footprint -- three m6i.2xlarge workers also carry the whole platform.
+core:
+  replicas: 1
+portal:
+  replicas: 1
+jobservice:
+  replicas: 1
+registry:
+  replicas: 1

@@ -1,0 +1,62 @@
+# The GitOps operator's cluster-scoped grants cover core kinds only; any
+# third-party CRD ArgoCD must manage needs explicit RBAC here — including
+# NAMESPACED ones. Symptom when a kind is missing: the Application sits
+# OutOfSync/Missing and its syncResult says
+#   <resource> is forbidden: User
+#   "system:serviceaccount:openshift-gitops:openshift-gitops-argocd-application-controller"
+#   cannot patch resource "<plural>" in API group "<group>"
+# which is easy to misread as an AppProject restriction. (Our AppProject already
+# allows */* for namespaced kinds, so it is never the project.)
+#
+# REMINDER: this file is hand-applied — ArgoCD does not manage its own RBAC.
+# After editing: oc apply -f gitops/bootstrap/argocd/controller-rbac.yaml
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: openshift-gitops-argocd-extra
+rules:
+  - apiGroups: ["external-secrets.io"]
+    resources: ["clustersecretstores"]
+    verbs: ["*"]
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["*"]
+  - apiGroups: ["kataconfiguration.openshift.io"]
+    resources: ["kataconfigs"]
+    verbs: ["*"]
+  - apiGroups: ["node.k8s.io"]
+    resources: ["runtimeclasses"]
+    verbs: ["*"]
+  # Conduct (sbx-templates): the SandboxTemplate/SandboxWarmPool CRs the
+  # agent-sandbox controller reconciles into sandbox pods.
+  - apiGroups: ["extensions.agents.x-k8s.io"]
+    resources: ["sandboxtemplates", "sandboxwarmpools", "sandboxclaims"]
+    verbs: ["*"]
+  - apiGroups: ["agents.x-k8s.io"]
+    resources: ["sandboxes"]
+    verbs: ["*"]
+  # Cilium is the CNI here, so CiliumNetworkPolicy is how workloads express L7
+  # policy — sbx-templates ships one alongside its SandboxTemplate.
+  - apiGroups: ["cilium.io"]
+    resources: ["ciliumnetworkpolicies", "ciliumclusterwidenetworkpolicies"]
+    verbs: ["*"]
+  # Harbor's registry blobs live on ODF/NooBaa, claimed with an
+  # ObjectBucketClaim. Without this the platform app's sync fails on the claim
+  # while every other Harbor object applies, which reads like a Harbor problem
+  # rather than an RBAC one.
+  - apiGroups: ["objectbucket.io"]
+    resources: ["objectbucketclaims", "objectbuckets"]
+    verbs: ["*"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: openshift-gitops-argocd-extra
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: openshift-gitops-argocd-extra
+subjects:
+  - kind: ServiceAccount
+    name: openshift-gitops-argocd-application-controller
+    namespace: openshift-gitops

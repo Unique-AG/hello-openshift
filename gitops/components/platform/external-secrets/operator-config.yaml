@@ -1,0 +1,26 @@
+# The External Secrets OLM operator installs only the operator; the
+# ESO controller itself deploys when this OperatorConfig exists.
+# Spec mirrors the ESO Helm values.
+#
+# The eks.amazonaws.com/role-arn annotation is env-specific (patched
+# in environments/<env>/platform); the ROSA pod-identity webhook
+# injects STS credentials for it — no static keys.
+apiVersion: operator.external-secrets.io/v1alpha1
+kind: OperatorConfig
+metadata:
+  name: cluster
+  namespace: external-secrets
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  serviceAccount:
+    create: true
+    name: external-secrets
+    annotations:
+      eks.amazonaws.com/role-arn: PATCHED-PER-ENVIRONMENT
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      memory: 256Mi

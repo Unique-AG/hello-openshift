@@ -1,0 +1,19 @@
+# LiteLLM must run as the image's default user (root), like it does in
+# QA/AKS: ghcr.io/berriai/litellm-database bakes the prisma-python
+# query engines under /root/.cache (and /root is 0700), so under the
+# restricted-v2 SCC's random UID the proxy dies at startup with
+# "PermissionError: /root/.cache/prisma-python/.../query-engine-*"
+# -> prisma NotConnectedError -> CrashLoopBackOff.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: litellm-scc-anyuid
+  namespace: system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:anyuid
+subjects:
+  - kind: ServiceAccount
+    name: litellm
+    namespace: system

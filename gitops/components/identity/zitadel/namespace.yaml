@@ -1,0 +1,9 @@
+# Zitadel runs in its own `zitadel` namespace (QA deploys it as a
+# standalone 3-system app; folder name = namespace there).
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: zitadel
+  labels:
+    argocd.argoproj.io/managed-by: openshift-gitops
+    unique.ag/layer: identity

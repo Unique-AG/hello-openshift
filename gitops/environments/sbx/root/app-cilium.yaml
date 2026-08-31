@@ -1,0 +1,38 @@
+# CNI — installed by hand at bootstrap (cluster is no-CNI), adopted
+# and kept in sync by ArgoCD from then on. prune: false — pruning the
+# CNI takes down all cluster networking.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cilium
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  project: hello-openshift
+  sources:
+    - repoURL: https://helm.cilium.io
+      chart: cilium
+      targetRevision: 1.18.9
+      helm:
+        valueFiles:
+          - $values/gitops/bootstrap/cilium/values.yaml
+    - repoURL: git@github.com:Unique-AG/hello-openshift.git
+      targetRevision: deploy
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cilium
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

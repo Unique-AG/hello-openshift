@@ -1,0 +1,75 @@
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: hello-openshift
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  description: Hello OpenShift Platform Project
+  sourceRepos:
+    - 'git@github.com:Unique-AG/hello-openshift.git'
+    - 'https://helm.cilium.io'
+    - 'https://helm.goharbor.io'                                     # harbor (image registry)
+    # Conduct dependencies (mirroring QA)
+    - 'https://charts.bitnami.com/bitnami'                          # rabbitmq
+    - 'https://qdrant.github.io/qdrant-helm'                        # qdrant
+    - 'oci://ghcr.io/berriai/litellm-helm'                          # litellm
+    - 'https://ot-container-kit.github.io/helm-charts'              # litellm cache redis
+    - 'oci://ghcr.io/unique-ag/helm-charts/agent-sandbox-controller'
+    - 'https://charts.zitadel.com'                                  # zitadel
+    - 'uniquecr.azurecr.io'                                         # Unique per-app OCI charts (chat slice)
+  destinations:
+    - namespace: hello-openshift-*
+      server: https://kubernetes.default.svc
+    - namespace: openshift-operators
+      server: https://kubernetes.default.svc
+    - namespace: external-secrets
+      server: https://kubernetes.default.svc
+    - namespace: openshift-gitops
+      server: https://kubernetes.default.svc
+    - namespace: openshift-storage
+      server: https://kubernetes.default.svc
+    - namespace: cilium
+      server: https://kubernetes.default.svc
+    - namespace: cilium-secrets # chart 1.18 TLS-interception RBAC lands here
+      server: https://kubernetes.default.svc
+    - namespace: harbor # image registry (proxy-cache for uniquecr/docker/quay/ghcr)
+      server: https://kubernetes.default.svc
+    - namespace: openshift-sandboxed-containers-operator
+      server: https://kubernetes.default.svc
+    - namespace: system
+      server: https://kubernetes.default.svc
+    - namespace: sbx
+      server: https://kubernetes.default.svc
+    - namespace: eventing # rabbitmq (QA namespace)
+      server: https://kubernetes.default.svc
+    - namespace: finance-gpt # qdrant (QA namespace)
+      server: https://kubernetes.default.svc
+    - namespace: zitadel
+      server: https://kubernetes.default.svc
+    - namespace: unique # Unique chat slice (web-app-chat + backends)
+      server: https://kubernetes.default.svc
+  clusterResourceWhitelist:
+    - group: ''
+      kind: Namespace
+    - group: operators.coreos.com
+      kind: Subscription
+    - group: operators.coreos.com
+      kind: OperatorGroup
+    - group: external-secrets.io
+      kind: ClusterSecretStore
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRole
+    - group: rbac.authorization.k8s.io
+      kind: ClusterRoleBinding
+    - group: kataconfiguration.openshift.io
+      kind: KataConfig
+    - group: node.k8s.io
+      kind: RuntimeClass
+    # agent-sandbox-controller ships its CRDs inside the chart
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+  namespaceResourceWhitelist:
+    - group: '*'
+      kind: '*'

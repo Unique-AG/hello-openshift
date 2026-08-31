@@ -1,0 +1,55 @@
+# Qdrant (qdrant-helm chart 1.18.2) — mirrored from QA
+# (qa/gitops/3-system/qdrant/app.yaml merged with
+# gitops-resources/defaults/{global/qdrant/resources/large.yaml,offset/qdrant/values.yaml}).
+#
+# SKIPPED vs QA:
+#   - ingress (Tailscale, QA-only and unauthenticated — UN-15845)
+#   - imagePullSecrets + ACR-mirrored image (uniqueapp.azurecr.io/docker.io/qdrant/qdrant)
+#   - priorityClassName: unique-critical (class does not exist on this cluster)
+#   - qdrant-extras chart (CiliumNetworkPolicy/alerts/dashboard; lives in the
+#     private Unique-AG/infrastructure repo — see components/conduct/README.md)
+fullnameOverride: qdrant-frosty-mud
+nameOverride: frosty-mud
+# QA uses the "large" preset (4 replicas, 8Gi limits, 100Gi PVCs) —
+# scaled down to a single small node for the sbx cluster.
+replicaCount: 1
+resources:
+  limits:
+    memory: 4Gi
+  requests:
+    cpu: 500m
+    memory: 2Gi
+image:
+  # OpenShift: the default image + chown init container need a fixed
+  # root/UID; the -unprivileged image variant skips both. Tag defaults
+  # to the chart appVersion (v1.18.2), matching QA's pin.
+  useUnprivilegedImage: true
+metrics:
+  serviceMonitor:
+    enabled: true
+persistence:
+  accessModes:
+    - ReadWriteOnce
+  size: 20Gi # QA: 100Gi
+  storageClassName: gp3-csi # QA: Azure "default"/ZRS
+podDisruptionBudget:
+  enabled: true
+  maxUnavailable: 1
+startupProbe:
+  enabled: false # disabled in QA's valuesObject
+affinity:
+  podAntiAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      - labelSelector:
+          matchLabels:
+            app.kubernetes.io/name: '{{ include "qdrant.name" . }}'
+            app.kubernetes.io/instance: '{{ .Release.Name }}'
+        topologyKey: kubernetes.io/hostname
+# OpenShift-only (not in QA): null removes the chart's fixed
+# UID/GID/fsGroup so the restricted-v2 SCC can assign them.
+podSecurityContext:
+  fsGroup: null
+  fsGroupChangePolicy: null
+containerSecurityContext:
+  runAsUser: null
+  runAsGroup: null

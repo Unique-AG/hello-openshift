@@ -1,0 +1,8 @@
+# Backend for the 1-foundation stack (sbx).
+
+bucket       = "s3-<org>-<client>-x-<region>-tfstate"
+key          = "sbx/foundation.tfstate"
+region       = "eu-central-2"
+encrypt      = true
+kms_key_id   = "alias/kms-<org>-<client>-<env>-<region>-tfstate"
+use_lockfile = true

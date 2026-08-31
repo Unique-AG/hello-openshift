@@ -1,0 +1,25 @@
+# Conduct's sandbox workloads pin non-root UIDs, which OpenShift's default
+# restricted-v2 SCC rejects (it allocates UIDs from the namespace range):
+#   - sandbox runtime pods (sbx-templates): runAsUser/runAsGroup/fsGroup 65534
+#   - sbx-gateway: fsGroup 1000
+# nonroot-v2 allows any non-root UID, so grant it to every service account in
+# `sbx`. Same pattern and reasoning as components/chat/scc-rbac.yaml for `unique`.
+#
+# Granted to the group rather than named accounts because the agent-sandbox
+# controller creates sandbox pods dynamically under the namespace's default SA.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: sbx-nonroot-scc
+  namespace: sbx
+  annotations:
+    # Wave 4 with the rest of conduct, so it precedes the wave-5 workloads.
+    argocd.argoproj.io/sync-wave: "4"
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: system:openshift:scc:nonroot-v2
+subjects:
+  - kind: Group
+    apiGroup: rbac.authorization.k8s.io
+    name: system:serviceaccounts:sbx

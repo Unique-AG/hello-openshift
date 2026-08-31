@@ -1,0 +1,194 @@
+# backend-service-chat (chart helm/chat 2026.34.4) — node-chat.
+# Flattened from the reference deployment (defaults/backend-services/chat.yaml +
+# sbx/values/backend-services/{_all,chat}.yaml), adapted:
+#   - image via the ECR pull-through cache.
+#   - Kong HTTPRoutes DISABLED (no Gateway API); reachable in-cluster at
+#     chat.unique.svc:8093.
+#   - DATABASE_URL built in structured mode from the in-cluster CNPG cluster
+#     (chat DB, app_user), password from the chat-db ExternalSecret.
+#   - Redis -> the in-cluster data-services Redis (hello-openshift-redis,
+#     :6379, no TLS). LiteLLM -> litellm.system.svc:4000. RabbitMQ ->
+#     rabbitmqcluster-chat-default-user ExternalSecret.
+#   - app-specific secrets (CHAT_LXM_ENCRYPTION_KEY, JWT_PUBLIC_KEY,
+#     AZURE_OPENAI_API_ENDPOINTS_JSON seed, ...) come from extraEnvSecrets
+#     `chat-secrets`, materialized from the USER-OWNED ASM secret
+#     hello-openshift/sbx/chat-secrets (see external-secret-app-secrets.yaml).
+#     BLOCKED until that ASM secret is populated.
+# NOTE: the chat chart's values.schema.json carries non-canonical $refs that
+# strict helm rejects; ArgoCD skips schema validation for it (skipSchemaValidation
+# on the Application source is not needed — the chart renders; only helm's schema
+# re-validation trips, which ArgoCD's --skip-schema is set to bypass via
+# helm.skipSchemaValidation below).
+
+image:
+  registry: harbor.openshift.example.com
+  repository: uniquecr/backend-service-chat
+  useDigest: false
+  tag: "2026.34.4"
+
+routes:
+  hostname: openshift.example.com
+  pathPrefix: /chat
+  paths:
+    default:
+      enabled: false
+    versioned:
+      enabled: false
+    probe:
+      enabled: false
+
+# The chat chart also ships Gateway-API extraRoutes (swagger/openapi) enabled by
+# default — disable them too (no Gateway API CRDs on this cluster).
+extraRoutes:
+  swagger:
+    enabled: false
+  openapi:
+    enabled: false
+
+postgresql:
+  enabled: true
+  connection:
+    host: hello-openshift-postgres-rw.hello-openshift-data.svc.cluster.local
+    port: 5432
+    database: chat
+    username: app_user
+    password:
+      fromSecret:
+        name: chat-db
+        key: password
+    sslMode: require
+
+# Redis wired the platform-native way (chart emits PUBSUB_BACKEND + connection
+# env). Points at the in-cluster data-services Redis; port 6379 => no TLS.
+redis:
+  enabled: true
+  connection:
+    host: hello-openshift-redis.hello-openshift-data.svc.cluster.local
+    port: 6379
+
+prometheus:
+  enabled: false
+
+secretProvider: {}
+
+grafana:
+  dashboards:
+    enabled: false
+
+env:
+  LOG_LEVEL: info
+  MAX_HEAP_MB: "3700"
+  AUDIT_LOG_DIR: /dev/stdout
+  UNIQUE_INSTALLATION_ID: openshift.example.com
+  ADMIN_FRONTEND_URL: https://openshift.example.com/admin
+  CHAT_FRONTEND_URL: https://openshift.example.com/chat
+  CORS_ALLOWED_ORIGINS: https://openshift.example.com
+  ZITADEL_HOST: https://id.openshift.example.com
+  ZITADEL_PROJECT_ID: "<project-id>"
+  ZITADEL_ROOT_ORG_ID: "<root-org-id>"
+  CONFIGURATION_BACKEND_URL: http://configuration-backend.unique.svc:8095
+  SCOPE_MANAGEMENT_API_URL: http://scope-management.unique.svc:8094
+  APP_REPOSITORY_URL: http://app-repository.unique.svc:8088
+  ASSISTANT_CORE_API_URL: http://assistants-core.unique.svc:8081/core
+  INGESTION_API_URL: http://ingestion.unique.svc:8091
+  LITELLM_ENDPOINT: http://litellm.system.svc:4000
+  LITELLM_ENABLED: "true"
+  UNIQUEAI_ALLOWED_MODELS: "*:litellm:anthropic-claude-sonnet-4-5,litellm:anthropic-claude-haiku-4-5,gpt-4o-2024-11-20"
+  REDIS_HOST: hello-openshift-redis.hello-openshift-data.svc.cluster.local
+  REDIS_PORT: "6379"
+  REDIS_TLS: "false"
+  CACHE_REDIS_DB: "3"
+  PUBSUB_REDIS_DB: "2"
+  DATABASE_CONNECTION_POOL_LIMIT: "30"
+  DISABLE_WEB_SEARCH_TOOL: "true"
+  MCP_POLICY_MODE: "UNRESTRICTED"
+  # File storage -> in-cluster ODF NooBaa S3 (not Azure Blob)
+  S3_BUCKET_ENDPOINT: https://s3.openshift-storage.svc:443
+  S3_BUCKET_REGION: us-east-1
+  S3_FORCE_PATH_STYLE: "true"
+  NODE_TLS_REJECT_UNAUTHORIZED: "0"  # NooBaa self-signed cert (sbx)
+
+envVars:
+  - name: AMQP_USERNAME
+    valueFrom:
+      secretKeyRef:
+        name: rabbitmqcluster-chat-default-user
+        key: username
+  - name: AMQP_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: rabbitmqcluster-chat-default-user
+        key: password
+  - name: AMQP_HOST
+    valueFrom:
+      secretKeyRef:
+        name: rabbitmqcluster-chat-default-user
+        key: host
+  - name: AMQP_PORT
+    valueFrom:
+      secretKeyRef:
+        name: rabbitmqcluster-chat-default-user
+        key: port
+
+  - name: REDIS_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: redis-auth
+        key: password
+  - name: PUBSUB_REDIS_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: redis-auth
+        key: password
+  - name: S3_BUCKET_BUCKET_NAME
+    valueFrom:
+      configMapKeyRef:
+        name: chat-storage
+        key: BUCKET_NAME
+  - name: S3_BUCKET_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: chat-storage
+        key: AWS_ACCESS_KEY_ID
+  - name: S3_BUCKET_SECRET_ACCESS_KEY
+    valueFrom:
+      secretKeyRef:
+        name: chat-storage
+        key: AWS_SECRET_ACCESS_KEY
+
+extraEnvSecrets:
+  - chat-secrets
+
+serviceAccount:
+  enabled: true
+  workloadIdentity:
+    enabled: false
+
+podAnnotations:
+  reloader.stakater.com/auto: "true"
+
+nodeSelector: {}
+
+keda:
+  skipCrdCheck: true
+
+rabbitmq:
+  enabled: false
+  connection: {}
+qdrant:
+  enabled: false
+  connection: {}
+elasticsearch:
+  enabled: false
+  connection: {}
+litellm:
+  enabled: false
+  connection: {}
+
+resources:
+  limits:
+    cpu: "1"
+    memory: 4Gi
+  requests:
+    cpu: 500m
+    memory: 3Gi

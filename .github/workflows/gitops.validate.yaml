@@ -1,0 +1,70 @@
+name: '[gitops] Validate'
+on:
+  pull_request:
+    paths:
+      - 'gitops/**'
+      - 'scripts/gitleaks-config.toml'
+      - '.github/workflows/**'
+  push:
+    # See tf.validate.yaml: `deploy` is the branch ArgoCD tracks.
+    branches: [main, deploy]
+
+permissions:
+  contents: read
+
+env:
+  KUSTOMIZE_VERSION: '5.7.1'
+  GITLEAKS_VERSION: '8.30.0'
+
+jobs:
+  kustomize:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - name: Install kustomize
+        # Pinned release tarball rather than piping install_kustomize.sh from
+        # master, so the toolchain cannot change under us between runs.
+        run: |
+          curl -fsSL -o kustomize.tar.gz \
+            "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${KUSTOMIZE_VERSION}/kustomize_v${KUSTOMIZE_VERSION}_linux_amd64.tar.gz"
+          tar -xzf kustomize.tar.gz -C /usr/local/bin kustomize
+          rm kustomize.tar.gz
+          kustomize version
+      - name: Build every kustomization
+        # Every directory holding a kustomization.yaml must build. This is the
+        # check that catches a dangling resource reference or a patch whose
+        # target no longer exists -- ArgoCD would otherwise surface it only at
+        # sync time, after the merge.
+        run: |
+          rc=0
+          while read -r dir; do
+            if kustomize build "$dir" >/dev/null 2>build.err; then
+              echo "ok    $dir"
+            else
+              echo "FAIL  $dir"
+              sed 's/^/        /' build.err
+              rc=1
+            fi
+          done < <(find gitops -name kustomization.yaml -exec dirname {} \; | sort)
+          exit $rc
+
+  secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          fetch-depth: 0
+      - name: Install gitleaks
+        # The gitleaks binary, not gitleaks-action: the action requires a
+        # GITLEAKS_LICENSE for organization-owned repositories, so it would
+        # red-fail every PR here for a reason unrelated to the code.
+        run: |
+          curl -fsSL -o gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          tar -xzf gitleaks.tar.gz -C /usr/local/bin gitleaks
+          rm gitleaks.tar.gz
+          gitleaks version
+      - name: Scan history
+        # Same config the pre-commit and pre-push hooks use, so a PR cannot
+        # introduce something the local hooks would have caught.
+        run: gitleaks detect --source . --config scripts/gitleaks-config.toml --redact --no-banner -v

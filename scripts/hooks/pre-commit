@@ -1,0 +1,112 @@
+#!/bin/bash
+set -euo pipefail
+
+#######################################
+# Pre-commit hook
+#######################################
+#
+# Secret scanning on STAGED content, plus validation of whatever the commit
+# actually touches: kustomize builds for gitops/, fmt + validate for terraform/.
+#
+# Bypass in an emergency with `git commit --no-verify`.
+#
+#######################################
+
+HOOK_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${HOOK_DIR}/../.." && pwd)"
+cd "$PROJECT_ROOT"
+
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
+FAILED=0
+
+echo -e "${BLUE}🔍 pre-commit${NC}"
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR)
+if [ -z "$STAGED" ]; then
+  echo -e "${GREEN}✅ nothing staged${NC}"
+  exit 0
+fi
+
+#######################################
+# 1. Secrets
+#######################################
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo -e "${YELLOW}⚠️  gitleaks not found — skipping secret scan (./scripts/setup-hooks.sh documents the dependency)${NC}"
+else
+  # `git --staged` scans the staged blobs. Scanning the working-tree copy
+  # instead would miss the case that matters most: stage a clean file, then
+  # edit a secret into it before committing.
+  if gitleaks git --staged --config scripts/gitleaks-config.toml \
+       --redact --no-banner >/dev/null 2>&1; then
+    echo -e "${GREEN}✅ no secrets in staged content${NC}"
+  else
+    echo -e "${RED}❌ BLOCKED: secrets detected in staged content${NC}"
+    gitleaks git --staged --config scripts/gitleaks-config.toml --redact --no-banner -v 2>&1 | sed 's/^/    /'
+    echo -e "${YELLOW}💡 bypass (emergency only): git commit --no-verify${NC}"
+    exit 1
+  fi
+fi
+
+#######################################
+# 2. Kustomize (gitops/)
+#######################################
+if echo "$STAGED" | grep -q '^gitops/'; then
+  KUSTOMIZE=""
+  command -v kustomize >/dev/null 2>&1 && KUSTOMIZE="kustomize build"
+  [ -z "$KUSTOMIZE" ] && command -v kubectl >/dev/null 2>&1 && KUSTOMIZE="kubectl kustomize"
+  [ -z "$KUSTOMIZE" ] && command -v oc >/dev/null 2>&1 && KUSTOMIZE="oc kustomize"
+
+  if [ -z "$KUSTOMIZE" ]; then
+    echo -e "${YELLOW}⚠️  no kustomize/kubectl/oc — skipping kustomize validation${NC}"
+  else
+    # Every root is built, not just the ones containing a staged file: a base
+    # edit breaks overlays that reference it, and those are the failures that
+    # otherwise surface only when ArgoCD syncs.
+    bad=0
+    while read -r dir; do
+      $KUSTOMIZE "$dir" >/dev/null 2>&1 || { echo -e "${RED}❌ kustomize build failed: $dir${NC}"; bad=1; }
+    done < <(find gitops -name kustomization.yaml -exec dirname {} \; | sort)
+    if [ "$bad" -eq 0 ]; then
+      echo -e "${GREEN}✅ all kustomizations build${NC}"
+    else
+      FAILED=1
+    fi
+  fi
+fi
+
+#######################################
+# 3. Terraform (terraform/)
+#######################################
+if echo "$STAGED" | grep -q '^terraform/'; then
+  if ! command -v terraform >/dev/null 2>&1; then
+    echo -e "${YELLOW}⚠️  terraform not found — skipping terraform validation${NC}"
+  else
+    if terraform fmt -check -recursive terraform >/dev/null 2>&1; then
+      echo -e "${GREEN}✅ terraform fmt${NC}"
+    else
+      echo -e "${RED}❌ terraform fmt: run 'make fmt'${NC}"
+      terraform fmt -check -recursive terraform 2>&1 | sed 's/^/    /'
+      FAILED=1
+    fi
+
+    # validate only where a provider cache already exists; the hook must not
+    # trigger a provider download.
+    for stack in terraform/*/; do
+      [ -d "${stack}.terraform" ] || continue
+      name=$(basename "$stack")
+      if terraform -chdir="$stack" validate -no-color >/dev/null 2>&1; then
+        echo -e "${GREEN}✅ terraform validate: ${name}${NC}"
+      else
+        echo -e "${RED}❌ terraform validate: ${name}${NC}"
+        terraform -chdir="$stack" validate -no-color 2>&1 | sed 's/^/    /'
+        FAILED=1
+      fi
+    done
+  fi
+fi
+
+if [ "$FAILED" -ne 0 ]; then
+  echo -e "${RED}❌ pre-commit failed${NC}"
+  exit 1
+fi
+echo -e "${GREEN}✅ pre-commit passed${NC}"

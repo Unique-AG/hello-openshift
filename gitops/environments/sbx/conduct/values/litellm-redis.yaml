@@ -1,0 +1,63 @@
+# LiteLLM cache Redis (ot-helm `redis` chart 0.16.9, standalone CR
+# reconciled by the already-installed Opstree redis-operator) —
+# mirrored from gitops-resources/defaults/offset/litellm/redis-ot/values.yaml.
+#
+# SKIPPED vs QA:
+#   - imagePullSecrets + ACR-mirrored, digest-pinned images
+#     (uniqueapp.azurecr.io/quay.io/opstree/...) — the chart defaults are
+#     the same public quay.io images (redis v7.0.15, exporter) untagged
+#     by digest.
+#   - podSecurityContext (fixed runAsUser/fsGroup 1000) — OpenShift SCC
+#     assigns UIDs from the namespace range.
+redisStandalone:
+  name: litellm-redis-ot
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  capabilities:
+    drop:
+      - ALL
+
+# OpenShift-only: null removes the chart's default fixed
+# runAsUser/fsGroup (1000) so the restricted-v2 SCC can assign them.
+podSecurityContext:
+  runAsUser: null
+  fsGroup: null
+
+serviceMonitor:
+  enabled: true
+
+# The chart always renders `spec.redisConfig:`; with externalConfig
+# disabled it renders as null, which the operator CRD rejects
+# ("must be of type object"). Enabling it fills the object with
+# additionalRedisConfig (and some benign tuning, chart defaults).
+externalConfig:
+  enabled: true
+  data: |
+    tcp-keepalive 400
+    slowlog-max-len 158
+    stream-node-max-bytes 2048
+
+# NOTE: no exporter `securityContext` — the installed redis-operator
+# (0.15.1) ships CRDs without .spec.redisExporter.securityContext
+# (chart 0.16.9 targets the 0.16.x CRDs); rendering it fails
+# server-side apply with "field not declared in schema".
+redisExporter:
+  enabled: true
+  imagePullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi

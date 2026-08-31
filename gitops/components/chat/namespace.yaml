@@ -1,0 +1,17 @@
+# The Unique chat slice runs in `unique` — the namespace the reference deployment's per-app
+# charts assume for in-cluster service DNS (chat.unique.svc, app-repository.
+# unique.svc, assistants-core.unique.svc, ...). Keeping the name lets the
+# inter-service URLs in the helm values resolve unchanged.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: unique
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+  labels:
+    # Grants the ArgoCD application-controller admin RBAC in this namespace
+    # (without it, syncing ExternalSecrets/etc. here is forbidden).
+    argocd.argoproj.io/managed-by: openshift-gitops
+    app.kubernetes.io/part-of: hello-openshift
+    unique.ag/environment: sbx
+    unique.ag/layer: chat

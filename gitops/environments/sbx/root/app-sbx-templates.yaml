@@ -1,0 +1,71 @@
+# sbx-templates — the SandboxTemplate Conduct instantiates per agent run, plus
+# its warm pool and CiliumNetworkPolicy (chart
+# oci://uniquecr.azurecr.io/helm/sbx-templates 2026.34.4, pulled via the ArgoCD
+# uniquecr OCI repo credential in root/external-secret-argocd-uniquecr.yaml).
+#
+# This is the app that actually turns Conduct on: assistants-core asks the
+# agent-sandbox controller for a Sandbox and the controller builds pods from this
+# template.
+#
+# Wave 6 — it must come AFTER:
+#   - conduct (wave 4): the `sbx` namespace and its nonroot-v2 SCC binding
+#   - agent-sandbox-controller (wave 5): installs the
+#     extensions.agents.x-k8s.io CRDs this chart renders against, and must be
+#     >= 0.4.6-rc.1 or the CRD prunes `sandboxTemplate.service`
+#   - sbx-gateway (wave 5): provides the egress proxy and the egress-mitm-ca Secret
+#
+# CAVEAT worth repeating: `runtimeClassName: kata-vm-isolation` resolves to handler
+# `runc` on this cluster, so sandboxes are ordinary containers with no VM
+# boundary — isolation here is namespace/cgroup plus the CiliumNetworkPolicy only.
+# Real peer-pods isolation is impossible on ROSA HCP; see
+# components/platform/kata/runtimeclass-alias.yaml.
+#
+# warmPool.replicas is 0 in the chart default, so nothing is pre-warmed and the
+# template costs no resources until a sandbox is claimed. If a KEDA-scaled warm
+# pool is ever enabled, add the ignoreDifferences the chart documents for
+# spec.replicas or selfHeal will fight KEDA.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: sbx-templates
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "6"
+spec:
+  project: hello-openshift
+  # The SandboxTemplate CRD defaults `spec.envVarsInjectionPolicy`, which the
+  # chart does not render — without ignoring it the app sits permanently
+  # OutOfSync (Healthy) on a field we never set.
+  ignoreDifferences:
+    - group: extensions.agents.x-k8s.io
+      kind: SandboxTemplate
+      jsonPointers:
+        - /spec/envVarsInjectionPolicy
+  sources:
+    - repoURL: uniquecr.azurecr.io
+      chart: helm/sbx-templates
+      targetRevision: 2026.34.4
+      helm:
+        releaseName: sbx-templates
+        valueFiles:
+          - $values/gitops/environments/sbx/conduct/values/sbx-templates.yaml
+    - repoURL: git@github.com:Unique-AG/hello-openshift.git
+      targetRevision: deploy
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: sbx
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

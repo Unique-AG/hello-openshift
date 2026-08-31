@@ -1,0 +1,67 @@
+# Public path-based Routes for the chat backends the frontend calls
+# (config: chatBackendUrl=/chat-api, scopeManagementBackendUrl=/scope-management,
+# themeBackendUrl=/configuration, appRepositoryBackendUrl=/apps). QA fronts these
+# with Kong (path strip); here OpenShift Routes + rewrite-target:/ do the same.
+# TLS terminates upstream (CloudFront/ALB) -> plain HTTP to the router.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: chat-api
+  namespace: unique
+  annotations: { argocd.argoproj.io/sync-wave: "5", haproxy.router.openshift.io/rewrite-target: / }
+spec:
+  host: openshift.example.com
+  path: /chat-api
+  to: { kind: Service, name: chat }
+  port: { targetPort: http }
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: scope-management
+  namespace: unique
+  annotations: { argocd.argoproj.io/sync-wave: "5", haproxy.router.openshift.io/rewrite-target: / }
+spec:
+  host: openshift.example.com
+  path: /scope-management
+  to: { kind: Service, name: scope-management }
+  port: { targetPort: http }
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: configuration
+  namespace: unique
+  annotations: { argocd.argoproj.io/sync-wave: "5", haproxy.router.openshift.io/rewrite-target: / }
+spec:
+  host: openshift.example.com
+  path: /configuration
+  to: { kind: Service, name: configuration-backend }
+  port: { targetPort: http }
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: apps
+  namespace: unique
+  annotations: { argocd.argoproj.io/sync-wave: "5", haproxy.router.openshift.io/rewrite-target: / }
+spec:
+  host: openshift.example.com
+  path: /apps
+  to: { kind: Service, name: app-repository }
+  port: { targetPort: http }
+---
+# /ingestion -> node-ingestion. The chat frontend calls /ingestion/graphql
+# unconditionally; without this the Route 503s and the chat DETAIL view
+# (/chat/chat_<id>) hard-fails with "Something went wrong".
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: ingestion
+  namespace: unique
+  annotations: { argocd.argoproj.io/sync-wave: "5", haproxy.router.openshift.io/rewrite-target: / }
+spec:
+  host: openshift.example.com
+  path: /ingestion
+  to: { kind: Service, name: ingestion }
+  port: { targetPort: http }

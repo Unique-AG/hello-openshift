@@ -1,0 +1,9 @@
+# All-namespaces OperatorGroup (no targetNamespaces): the GitOps
+# operator watches the whole cluster, per current Red Hat guidance.
+apiVersion: operators.coreos.com/v1
+kind: OperatorGroup
+metadata:
+  name: openshift-gitops-operator
+  namespace: openshift-gitops-operator
+spec:
+  upgradeStrategy: Default

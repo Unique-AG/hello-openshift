@@ -1,0 +1,75 @@
+# Local specs folder (sensitive: kubeconfigs, deploy keys, admin credentials)
+.specs/
+
+# Local Terraform files
+**/.terraform/
+.terraform/
+
+# .tfstate files
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# Terraform plan files (binary, may contain sensitive data)
+*.tfplan
+**/tfplan*
+
+# Crash log files
+crash.log
+crash.*.log
+
+# tfvars: per-env stack files are tracked; the common file holds the
+# account id and is created locally from its template
+*.tfvars
+!environments/**/*.tfvars
+environments/common.tfvars
+
+# Environment identity files: the *.template files are tracked, the resolved
+# copies hold a live cluster's domain and Zitadel object ids and are created
+# locally from them (see the header of each .template file).
+
+gitops/environments/*/cluster-domain.env
+gitops/environments/*/zitadel-ids.env
+
+# Override files
+*_override.tf
+*_override.tf.json
+
+# CLI configuration files
+.terraformrc
+terraform.rc
+
+# Local environment variable files
+.env
+.env.local
+
+# Backup files
+*.backup
+*.bak
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Kustomize build outputs
+**/kustomize-build/
+
+# Private keys (never commit)
+*.key
+*.pem
+!*.pub
+
+# Kubernetes secrets (never commit unencrypted)
+*-secret.yaml
+!*-sealed-secret.yaml
+
+# IDE / editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Agent session artifacts
+.playwright-mcp/
+.claude/settings.local.json

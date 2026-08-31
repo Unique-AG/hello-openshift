@@ -1,0 +1,13 @@
+# One-shot cluster bootstrap: installs the OpenShift GitOps operator and
+# configures the default ArgoCD instance. Applied by hand exactly once
+# per cluster (see gitops/bootstrap/README.md); everything else is
+# ArgoCD's job from then on.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - operator/namespace.yaml
+  - operator/operatorgroup.yaml
+  - operator/subscription.yaml
+  - argocd/argocd-cr.yaml
+  - argocd/controller-rbac.yaml

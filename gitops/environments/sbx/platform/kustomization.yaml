@@ -1,0 +1,50 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - route-hubble-ui.yaml
+  # Harbor's Route: the host carries this cluster's apps domain, which changes
+  # on every rebuild, so it is environment-scoped rather than a base object.
+  # scripts/set-cluster-domain.sh rewrites the host here.
+  - route-harbor.yaml
+  - ../../../components/platform/namespaces
+  - ../../../components/platform/external-secrets
+  - ../../../components/platform/object-storage
+  - ../../../components/platform/cilium
+  - ../../../components/platform/kata
+  # Harbor's namespace, bucket claim and secrets. The chart itself is a
+  # separate Application (root/app-harbor.yaml) at a later wave, so all of this
+  # exists before Harbor's pods start.
+  - ../../../components/platform/harbor
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: hello-openshift
+      unique.ag/environment: sbx
+
+patches:
+  # Environment label on namespaces
+  - target:
+      kind: Namespace
+    patch: |-
+      - op: replace
+        path: /metadata/labels/unique.ag~1environment
+        value: sbx
+  # IRSA role for the ESO controller: terraform/2-cluster output
+  # external_secrets_role_arn ("${cluster_name}-external-secrets")
+  - target:
+      kind: OperatorConfig
+      name: cluster
+    patch: |-
+      - op: replace
+        path: /spec/serviceAccount/annotations/eks.amazonaws.com~1role-arn
+        value: arn:aws:iam::123456789012:role/rosa-uq-openshift-sbx-external-secrets
+  # ACM certificate for the Harbor registry ELB. Account-, region- and
+  # certificate-specific, so it is patched here rather than baked into the base.
+  - target:
+      kind: Service
+      name: harbor-registry-elb
+    patch: |-
+      - op: replace
+        path: /metadata/annotations/service.beta.kubernetes.io~1aws-load-balancer-ssl-cert
+        value: arn:aws:acm:eu-central-2:123456789012:certificate/00000000-0000-0000-0000-000000000000

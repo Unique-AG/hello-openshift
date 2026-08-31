@@ -1,0 +1,53 @@
+# Cilium as the cluster CNI (cluster created with --no-cni).
+# Chart: cilium/cilium 1.18.9 (QA parity). Applied at bootstrap BEFORE
+# ArgoCD (nodes are NotReady until a CNI exists); the cilium
+# Application later adopts these resources with the same values.
+cluster:
+  name: rosa-uq-openshift-sbx
+ipam:
+  mode: cluster-pool
+  operator:
+    clusterPoolIPv4PodCIDRList: ["10.128.0.0/14"]
+    clusterPoolIPv4MaskSize: 23
+routingMode: tunnel
+# geneve (UDP 6081): the ROSA worker SG opens 6081/4789 for OVN-K but
+# NOT Cilium's default vxlan port 8472 — vxlan silently black-holes
+# all cross-node traffic.
+tunnelProtocol: geneve
+# Cilium must own Services: with coexistence the eBPF datapath
+# bypasses kube-proxy's iptables DNAT and ClusterIPs (incl. DNS) black-hole.
+kubeProxyReplacement: true
+# NOTE: this is the cluster's own API FQDN and it changes on every rebuild - the
+# domain-prefix is stable but Red Hat assigns a new shard segment (m1sa -> c6lq on
+# 2026-08-25). Cilium cannot reach the apiserver if this is stale, and with
+# kubeProxyReplacement there is no service IP to fall back on, so the whole DaemonSet
+# fails to start. Re-derive it from `rosa describe cluster` on every rebuild.
+k8sServiceHost: api.<cluster-id>.<shard>.p3.openshiftapps.com
+k8sServicePort: 443
+endpointRoutes:
+  enabled: true
+cni:
+  binPath: /var/lib/cni/bin
+  confPath: /etc/kubernetes/cni/net.d
+  exclusive: false
+securityContext:
+  privileged: true
+# OpenShift mounts cgroup2 at /sys/fs/cgroup; Cilium's autoMount can
+# attach socket-LB programs to a nested root that pod sockets never
+# traverse — ClusterIP translation silently no-ops without this.
+cgroup:
+  autoMount:
+    enabled: false
+  hostRoot: /sys/fs/cgroup
+# L7 policy engine (the reason Cilium is here)
+l7Proxy: true
+envoy:
+  enabled: true
+hubble:
+  enabled: true
+  relay:
+    enabled: true
+  ui:
+    enabled: true
+operator:
+  replicas: 1

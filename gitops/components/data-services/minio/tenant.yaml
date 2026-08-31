@@ -1,0 +1,42 @@
+# MinIO Tenant (operator v6+ schema): root credentials come from the
+# `minio-env-config` secret (spec.configuration) rendered by an
+# ExternalSecret per environment — the old consoleSecret/console block
+# no longer exists in the CRD.
+#
+# Base is smallest-viable (1 server / 1 volume, SNSD); bigger
+# environments scale the pool via overlay patches. Bump the image to
+# the latest quay.io/minio/minio release at deploy time.
+apiVersion: minio.min.io/v2
+kind: Tenant
+metadata:
+  name: hello-openshift-minio
+  namespace: hello-openshift-data
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  image: quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z
+  configuration:
+    name: minio-env-config
+  pools:
+    - name: pool-0
+      servers: 1
+      volumesPerServer: 1
+      volumeClaimTemplate:
+        metadata:
+          name: data
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 10Gi
+          storageClassName: gp3-csi
+      resources:
+        requests:
+          cpu: 100m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+  mountPath: /export
+  requestAutoCert: true

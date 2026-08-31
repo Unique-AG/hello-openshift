@@ -1,0 +1,49 @@
+# Root app-of-apps for the sbx cluster: the only Application applied
+# by hand. It creates the AppProject and the child Applications
+# (operators, platform, data-services) from environments/sbx/root.
+#
+# Runs in project `default` deliberately — it only manages
+# AppProject/Application objects in openshift-gitops, which breaks the
+# chicken-and-egg with the hello-openshift project it creates.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root-sbx
+  namespace: openshift-gitops
+spec:
+  project: default
+  # ESO's webhook defaults these; without ignoring them every ExternalSecret
+  # shows permanent OutOfSync drift. `data[]` covers key-by-key refs,
+  # `dataFrom[].extract` covers whole-secret extracts (which the chat app uses —
+  # the data[]-only list left three ExternalSecrets permanently OutOfSync), and
+  # target.deletionPolicy is defaulted to Retain.
+  ignoreDifferences:
+    - group: external-secrets.io
+      kind: ExternalSecret
+      jqPathExpressions:
+        - .spec.data[].remoteRef.conversionStrategy
+        - .spec.data[].remoteRef.decodingStrategy
+        - .spec.data[].remoteRef.metadataPolicy
+        - .spec.dataFrom[].extract.conversionStrategy
+        - .spec.dataFrom[].extract.decodingStrategy
+        - .spec.dataFrom[].extract.metadataPolicy
+        - .spec.target.deletionPolicy
+  source:
+    repoURL: git@github.com:Unique-AG/hello-openshift.git
+    targetRevision: deploy
+    path: gitops/environments/sbx/root
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openshift-gitops
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

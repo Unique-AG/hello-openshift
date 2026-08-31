@@ -1,0 +1,30 @@
+# Standalone Multicloud Object Gateway (NooBaa only, no Ceph):
+# lightweight in-cluster S3 for the sandbox. Verify field names
+# against the installed ODF version if the resource errors
+# (documented mode: multiCloudGateway.reconcileStrategy: standalone).
+apiVersion: ocs.openshift.io/v1
+kind: StorageCluster
+metadata:
+  name: ocs-storagecluster
+  namespace: openshift-storage
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+spec:
+  multiCloudGateway:
+    reconcileStrategy: standalone
+    dbStorageClassName: gp3-csi
+    # Keep object storage off the public internet.
+    #
+    # By default NooBaa gives the `s3` and `sts` Services type LoadBalancer, and
+    # AWS answers with two INTERNET-FACING Classic ELBs -- so the sandbox's
+    # object storage was publicly reachable for the whole life of the previous
+    # cluster. Nothing here asked for that; it is the ODF default. Confirmed
+    # reproduced on the 2026-08-27 rebuild before this was set.
+    #
+    # Patching the Services directly does not hold -- the operator reconciles
+    # them back -- so it has to be expressed here.
+    #
+    # Nothing in this repo loses access: every consumer already talks to the
+    # in-cluster name (https://s3.openshift-storage.svc), including Harbor's
+    # registry blob store, chat file storage and ingestion.
+    disableLoadBalancerService: true

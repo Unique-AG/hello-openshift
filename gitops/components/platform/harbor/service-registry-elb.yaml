@@ -1,0 +1,73 @@
+# The registry endpoint that image pulls actually use.
+#
+# Why not the Route: image pulls are made by CRI-O on the NODES, and the
+# cluster's ingress NLB cannot serve them reliably. AWS NLBs with instance
+# targets and client-IP preservation black-hole traffic that lands back on the
+# originating instance, and every worker is a registered target. Measured on
+# 2026-08-27, 8 attempts per node against the Route:
+#
+#   ip-10-0-1-126 (0 router pods)  8/8 succeeded
+#   ip-10-0-1-15  (1 router pod)   7/8 succeeded
+#   ip-10-0-1-20  (1 router pod)   0/6 succeeded
+#
+# Intermittent failure is fatal for image pulls. A CLASSIC ELB is a proxy rather
+# than a pass-through, so it re-originates the connection and same-instance
+# traffic is fine. (Plain type: LoadBalancer with no nlb annotation gives a
+# Classic ELB -- that is deliberate here, not an oversight.)
+#
+# The Route in route.yaml stays: it is fine for humans using the Harbor UI.
+#
+# TLS terminates at the ELB using the ACM wildcard *.openshift.example.com,
+# which is publicly trusted -- so CRI-O needs no extra CA, which matters because
+# injecting one would need the MachineConfig Operator that ROSA HCP does not
+# expose. The ELB speaks plain HTTP to Harbor's nginx behind it.
+#
+# Reached as harbor.openshift.example.com via a Route53 PRIVATE hosted zone
+# scoped to exactly that name (terraform/2-cluster/harbor-dns.tf). Scoped
+# deliberately: a private zone for the parent openshift.example.com would
+# shadow the entire domain inside the VPC and break in-cluster calls to
+# id.openshift.example.com, which is Zitadel's OIDC issuer.
+apiVersion: v1
+kind: Service
+metadata:
+  name: harbor-registry-elb
+  namespace: harbor
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-internal: "true"
+    # Patched per environment (environments/<env>/platform/kustomization.yaml):
+    # the ARN carries an account id, a region and a certificate id, none of
+    # which belong in an environment-agnostic base.
+    service.beta.kubernetes.io/aws-load-balancer-ssl-cert: PATCHED_PER_ENVIRONMENT
+    # terminate TLS at the ELB, speak HTTP to Harbor
+    service.beta.kubernetes.io/aws-load-balancer-ssl-ports: "443"
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: http
+    # image layers are large; do not cut long pulls short
+    service.beta.kubernetes.io/aws-load-balancer-connection-idle-timeout: "600"
+spec:
+  type: LoadBalancer
+  # Local, NOT the default Cluster -- this is about the ELB's health check.
+  #
+  # With Cluster the in-tree AWS provider points the Classic ELB health check at
+  # HTTP:10256/healthz, which is KUBE-PROXY's endpoint. Cilium runs with
+  # kubeProxyReplacement: true, so although ROSA still schedules
+  # openshift-kube-proxy pods (2/2 Running), nothing binds 10256 -- the check
+  # gets connection-refused on every node, all instances go OutOfService, and the
+  # ELB answers pulls with "503 Service Unavailable: Back-end server is at
+  # capacity". The registry itself is fine throughout: the NodePort returns the
+  # expected 401 when probed directly.
+  #
+  # With Local the provider uses the service's healthCheckNodePort instead, and
+  # Cilium serves that (enable-health-check-nodeport). Trade-off accepted: only
+  # nodes actually running an nginx pod are considered healthy, so with one
+  # replica the ELB has a single live target and a pod reschedule causes a brief
+  # gap. Acceptable for a sandbox registry.
+  externalTrafficPolicy: Local
+  selector:
+    app: harbor
+    component: nginx
+    release: harbor
+  ports:
+    - name: https
+      port: 443
+      targetPort: 8080
+      protocol: TCP

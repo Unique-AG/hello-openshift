@@ -1,0 +1,30 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: platform
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+spec:
+  project: hello-openshift
+  source:
+    repoURL: git@github.com:Unique-AG/hello-openshift.git
+    targetRevision: deploy
+    path: gitops/environments/sbx/platform
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: hello-openshift-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m

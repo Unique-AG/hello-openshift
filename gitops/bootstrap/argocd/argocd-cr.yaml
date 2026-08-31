@@ -1,0 +1,27 @@
+# Overrides for the operator-created default ArgoCD instance.
+# Applied over the same-named CR the operator creates; may need a
+# retry until the ArgoCD CRD exists (the bootstrap README handles it).
+apiVersion: argoproj.io/v1beta1
+kind: ArgoCD
+metadata:
+  name: openshift-gitops
+  namespace: openshift-gitops
+spec:
+  # Annotation tracking avoids label fights over operator-managed children
+  resourceTrackingMethod: annotation
+  # Argo removed the built-in Application health check in 1.8; restore it
+  # so sync-waves between the root app's children gate on health.
+  resourceHealthChecks:
+    - group: argoproj.io
+      kind: Application
+      check: |
+        hs = {}
+        hs.status = "Progressing"
+        hs.message = ""
+        if obj.status ~= nil and obj.status.health ~= nil then
+          hs.status = obj.status.health.status
+          if obj.status.health.message ~= nil then
+            hs.message = obj.status.health.message
+          end
+        end
+        return hs

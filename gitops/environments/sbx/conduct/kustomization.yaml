@@ -1,0 +1,20 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../../components/conduct/agent-sandbox
+  - ../../../components/conduct/rabbitmq
+  - ../../../components/conduct/qdrant
+  - peer-pods-cm.yaml
+  - external-secret-peer-pods.yaml
+  - external-secret-rabbitmq.yaml
+  - external-secret-litellm.yaml
+  - serviceaccount-litellm.yaml
+  - scc-litellm-anyuid.yaml
+  - cm-litellm-aws-config.yaml
+  - scc-sbx-nonroot.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: hello-openshift
+      unique.ag/environment: sbx

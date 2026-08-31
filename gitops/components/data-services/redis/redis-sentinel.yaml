@@ -1,0 +1,24 @@
+apiVersion: redis.redis.opstreelabs.in/v1beta2
+kind: RedisSentinel
+metadata:
+  name: hello-openshift-redis
+  namespace: hello-openshift-data
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  clusterSize: 3
+  kubernetesConfig:
+    image: quay.io/opstree/redis-sentinel:v7.4.8
+    imagePullPolicy: IfNotPresent
+    redisSecret:
+      name: redis-auth
+      key: password
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 200m
+        memory: 256Mi
+  redisSentinelConfig:
+    redisReplicationName: hello-openshift-redis

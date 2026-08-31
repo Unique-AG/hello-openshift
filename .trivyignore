@@ -1,0 +1,18 @@
+# Suppressed trivy findings — rationale in docs/security-baseline.md.
+# Each entry is an accepted risk with a documented architectural reason,
+# not an unreviewed exception. Re-justify before adding to this list.
+
+# Bastion security group allows unrestricted egress.
+# The bastion is SSM-only (no inbound rules at all, no key pair) and needs
+# egress to reach the SSM endpoints, the cluster API and Red Hat registries.
+AWS-0104
+
+# Internal ALB has an HTTP:80 listener alongside HTTPS.
+# The ALB is internal (no public IP). CloudFront connects over HTTPS only;
+# the plaintext listener exists for VPC-internal debugging.
+AWS-0054
+
+# Public subnets set map_public_ip_on_launch.
+# These subnets exist to host the NAT gateway and the internet-facing ALB.
+# All cluster workloads run in the private subnets.
+AWS-0164

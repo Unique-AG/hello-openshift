@@ -1,0 +1,20 @@
+# Common configuration shared by all Terraform stacks.
+#
+# Copy to environments/common.tfvars and fill in the values.
+# The file is passed explicitly by the Makefile (-var-file), never
+# auto-loaded, so this is the single copy for the whole repo.
+
+# AWS Configuration
+aws_region     = "eu-central-2"
+aws_account_id = "YOUR_AWS_ACCOUNT_ID"
+
+# Organization configuration
+org         = "unique"
+org_moniker = "uq"
+
+# Client configuration
+client      = "openshift"
+client_name = "OpenShift"
+
+# Governance tracking
+semantic_version = "0.1.0"

@@ -1,0 +1,52 @@
+# Chat slice infra: the `unique` namespace, nonroot-v2 SCC grant, the public
+# /chat OpenShift Route, and the ExternalSecrets (DB app_user password, RabbitMQ
+# connection) the backends consume. Wave 5 — after data-services/conduct
+# (Postgres, RabbitMQ, Redis, LiteLLM) and before the chat helm apps (wave 6),
+# so the namespace and secrets exist when the charts render.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: chat
+  namespace: openshift-gitops
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  project: hello-openshift
+  # ESO webhook defaults these; ignore to avoid permanent OutOfSync drift.
+  # ESO's webhook defaults these; without ignoring them every ExternalSecret
+  # shows permanent OutOfSync drift. `data[]` covers key-by-key refs,
+  # `dataFrom[].extract` covers whole-secret extracts (which the chat app uses —
+  # the data[]-only list left three ExternalSecrets permanently OutOfSync), and
+  # target.deletionPolicy is defaulted to Retain.
+  ignoreDifferences:
+    - group: external-secrets.io
+      kind: ExternalSecret
+      jqPathExpressions:
+        - .spec.data[].remoteRef.conversionStrategy
+        - .spec.data[].remoteRef.decodingStrategy
+        - .spec.data[].remoteRef.metadataPolicy
+        - .spec.dataFrom[].extract.conversionStrategy
+        - .spec.dataFrom[].extract.decodingStrategy
+        - .spec.dataFrom[].extract.metadataPolicy
+        - .spec.target.deletionPolicy
+  source:
+    repoURL: git@github.com:Unique-AG/hello-openshift.git
+    targetRevision: deploy
+    path: gitops/environments/sbx/chat
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: unique
+  syncPolicy:
+    automated:
+      prune: false
+      selfHeal: true
+    syncOptions:
+      - ServerSideApply=true
+      - SkipDryRunOnMissingResource=true
+      - RespectIgnoreDifferences=true
+    retry:
+      limit: 10
+      backoff:
+        duration: 30s
+        factor: 2
+        maxDuration: 5m
