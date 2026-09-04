@@ -1,5 +1,5 @@
 # web-app-admin — the Unique admin frontend (chart oci://uniquecr.azurecr.io/
-# helm/admin-app 2026.34.4, pulled via the ArgoCD uniquecr OCI repo credential in
+# helm/admin-app 2026.37.0, pulled via the ArgoCD uniquecr OCI repo credential in
 # root/external-secret-argocd-uniquecr.yaml). Multi-source: chart + git values.
 # Wave 6 (after chat infra wave 5), same as web-app-chat. Served at /admin via
 # the OpenShift Route in the chat infra app (chat/route-admin.yaml).
@@ -20,7 +20,7 @@ spec:
   sources:
     - repoURL: uniquecr.azurecr.io
       chart: helm/admin-app
-      targetRevision: 2026.34.4
+      targetRevision: 2026.37.0
       helm:
         releaseName: web-app-admin
         valueFiles:

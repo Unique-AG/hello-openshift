@@ -1,5 +1,5 @@
 # backend-service-event-socket — chart oci://uniquecr.azurecr.io/helm/event-socket
-# 2026.34.4 (uniquecr OCI repo cred). Multi-source: chart + git values. Wave 6.
+# 2026.37.0 (uniquecr OCI repo cred). Multi-source: chart + git values. Wave 6.
 # Deployed into `unique`. Websocket event relay backed by RabbitMQ.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -13,7 +13,7 @@ spec:
   sources:
     - repoURL: uniquecr.azurecr.io
       chart: helm/event-socket
-      targetRevision: 2026.34.4
+      targetRevision: 2026.37.0
       helm:
         releaseName: backend-service-event-socket
         skipSchemaValidation: true

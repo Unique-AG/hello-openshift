@@ -1,4 +1,4 @@
-# backend-service-chat (chart helm/chat 2026.34.4) — node-chat.
+# backend-service-chat (chart helm/chat 2026.37.0) — node-chat.
 # Flattened from the reference deployment (defaults/backend-services/chat.yaml +
 # sbx/values/backend-services/{_all,chat}.yaml), adapted:
 #   - image via the ECR pull-through cache.
@@ -24,7 +24,7 @@ image:
   registry: harbor.openshift.example.com
   repository: uniquecr/backend-service-chat
   useDigest: false
-  tag: "2026.34.4"
+  tag: "2026.37.0"
 
 routes:
   hostname: openshift.example.com
@@ -65,6 +65,17 @@ redis:
   connection:
     host: hello-openshift-redis.hello-openshift-data.svc.cluster.local
     port: 6379
+
+# 2026.36 moves the Identity & access domains of /public/chat (/users, /groups,
+# /company) off node-chat and onto the new unique-api service. Enabling the
+# dependency is what makes the chart emit UNIQUE_API_URL plus the matching egress
+# rule; the rollout docs are explicit that UNIQUE_API_URL must never be set by
+# hand. `namespace` is omitted because unique-api runs in `unique` next to
+# node-chat. Without this, those three route groups answer 502 with no fallback.
+internalServices:
+  dependencies:
+    uniqueApi:
+      enabled: true
 
 prometheus:
   enabled: false

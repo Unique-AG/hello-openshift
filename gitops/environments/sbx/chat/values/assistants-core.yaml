@@ -1,4 +1,4 @@
-# assistants-core (chart helm/assistants-core 2026.34.4) — the sandbox
+# assistants-core (chart helm/assistants-core 2026.37.0) — the sandbox
 # orchestrator / AI service. Flattened from the reference deployment (defaults/ai-services/
 # assistants-core.yaml + sbx/values/ai-services/assistants-core.yaml), adapted:
 #   - image via the ECR pull-through cache.
@@ -14,7 +14,7 @@ image:
   registry: harbor.openshift.example.com
   repository: uniquecr/ai-service-assistants-core
   useDigest: false
-  tag: "2026.34.4"
+  tag: "2026.37.0"
 
 env:
   CORS_ALLOWED_ORIGINS: https://openshift.example.com

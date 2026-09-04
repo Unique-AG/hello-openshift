@@ -1,5 +1,5 @@
 # web-app-knowledge-upload — the Unique knowledge-base upload UI (chart
-# oci://uniquecr.azurecr.io/helm/knowledge-upload-app 2026.34.4, pulled via the
+# oci://uniquecr.azurecr.io/helm/knowledge-upload-app 2026.37.0, pulled via the
 # ArgoCD uniquecr OCI repo credential in root/external-secret-argocd-uniquecr.yaml).
 # Multi-source: chart + git values. Wave 6, with the other frontends. Served at
 # /knowledge-upload via the Route in the chat infra app
@@ -19,7 +19,7 @@ spec:
   sources:
     - repoURL: uniquecr.azurecr.io
       chart: helm/knowledge-upload-app
-      targetRevision: 2026.34.4
+      targetRevision: 2026.37.0
       helm:
         releaseName: web-app-knowledge-upload
         valueFiles:

@@ -88,7 +88,7 @@ spec:
   restartPolicy: Never
   containers:
     - name: p
-      image: "${HARBOR_REGISTRY_HOST}/uniquecr/web-app-chat:2026.34.4"
+      image: "${HARBOR_REGISTRY_HOST}/uniquecr/web-app-chat:2026.37.0"
       command: ["sh","-c","sleep 2"]
 YAML
 PULL="timeout"
@@ -99,7 +99,7 @@ for _ in $(seq 1 30); do
   case "$rs" in ErrImagePull|ImagePullBackOff) PULL="pull failed"; break;; esac
   sleep 5
 done
-[ "$PULL" = "ok" ] && ok "image pull through Harbor" "uniquecr/web-app-chat:2026.34.4" \
+[ "$PULL" = "ok" ] && ok "image pull through Harbor" "uniquecr/web-app-chat:2026.37.0" \
   || bad "image pull through Harbor" "$PULL"
 oc -n harbor delete pod smoke-pull --ignore-not-found >/dev/null 2>&1
 
@@ -135,12 +135,12 @@ LL=$(oc -n system get pods --no-headers 2>/dev/null | grep "^litellm-" | grep -v
 { [ "${LL:-0}" -ge 1 ]; } 2>/dev/null && ok "litellm proxy" "$LL ready" || bad "litellm proxy" "none ready"
 
 say "== 8. chat slice (wave 6) =="
-W6=$(oc -n openshift-gitops get applications --no-headers 2>/dev/null | grep -cE 'web-app-|backend-service-|assistants-core')
+W6=$(oc -n openshift-gitops get applications --no-headers 2>/dev/null | grep -cE 'web-app-|backend-service-|assistants-core|unique-api')
 if [ "${W6:-0}" = "0" ]; then
   skip "wave 6 applications" "not created yet — an earlier wave is still unhealthy"
 else
   W6H=$(oc -n openshift-gitops get applications --no-headers 2>/dev/null \
-    | grep -E 'web-app-|backend-service-|assistants-core' | awk '$3=="Healthy"' | wc -l | tr -d ' ')
+    | grep -E 'web-app-|backend-service-|assistants-core|unique-api' | awk '$3=="Healthy"' | wc -l | tr -d ' ')
   [ "$W6" = "$W6H" ] && ok "wave 6 applications" "$W6H/$W6 healthy" || bad "wave 6 applications" "$W6H/$W6 healthy"
 fi
 # Count only pods that are SUPPOSED to be running. Completed pods are finished

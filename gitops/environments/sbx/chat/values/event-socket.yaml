@@ -1,4 +1,4 @@
-# backend-service-event-socket (chart helm/event-socket 2026.34.4) —
+# backend-service-event-socket (chart helm/event-socket 2026.37.0) —
 # typescript-event-socket. Relays backend events (RabbitMQ) to the chat
 # frontend over websockets. node-chat publishes to it.
 # Flattened from the reference deployment (defaults/backend-services/event-socket.yaml +
@@ -13,7 +13,7 @@ image:
   registry: harbor.openshift.example.com
   repository: uniquecr/backend-service-event-socket
   useDigest: false
-  tag: "2026.34.4"
+  tag: "2026.37.0"
 
 routes:
   hostname: openshift.example.com

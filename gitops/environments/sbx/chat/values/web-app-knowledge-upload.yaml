@@ -1,4 +1,4 @@
-# web-app-knowledge-upload (chart helm/knowledge-upload-app 2026.34.4) — the
+# web-app-knowledge-upload (chart helm/knowledge-upload-app 2026.37.0) — the
 # Unique knowledge-base upload UI, served at
 # https://openshift.example.com/knowledge-upload.
 #
@@ -9,8 +9,9 @@
 # Flattened from the reference deployment (defaults/web-apps/knowledge-upload.yaml +
 # sbx/values/web-apps/_all.yaml), adapted exactly as web-app-admin.yaml:
 #   - image via the ECR pull-through cache (digest verified present:
-#     uniquecr/web-app-knowledge-upload:2026.34.4 = sha256:11fcd2848c3f...).
-#   - chart pinned to 2026.34.4 to match the rest of the slice.
+#     uniquecr/web-app-knowledge-upload:2026.37.0 = sha256:5a498996c73d64fa...
+#     per the 2026.37.0 release manifest).
+#   - chart pinned to 2026.37.0 to match the rest of the slice.
 #   - Kong/Gateway-API HTTPRoutes DISABLED (no Gateway API CRDs here); exposure
 #     is the OpenShift Route in chat/route-knowledge-upload.yaml.
 #   - nodeSelector {} — the reference deployment's scalability/lifecycle labels don't exist here.
@@ -26,7 +27,7 @@ image:
   registry: harbor.openshift.example.com
   repository: uniquecr/web-app-knowledge-upload
   useDigest: false
-  tag: "2026.34.4"
+  tag: "2026.37.0"
 
 routes:
   hostname: openshift.example.com

@@ -1,4 +1,4 @@
-# backend-service-ingestion (chart helm/ingestion 2026.34.4) — node-ingestion.
+# backend-service-ingestion (chart helm/ingestion 2026.37.0) — node-ingestion.
 #
 # Why it is here: the chat frontend calls /ingestion/graphql unconditionally, and
 # with no service behind that path the Route 503s and the chat DETAIL view
@@ -33,7 +33,7 @@ image:
   registry: harbor.openshift.example.com
   repository: uniquecr/backend-service-ingestion
   useDigest: false
-  tag: "2026.34.4"
+  tag: "2026.37.0"
 
 # Exposure is an OpenShift Route, not the chart's Kong HTTPRoutes. Disable every
 # path so no gateway.networking.k8s.io object is rendered (the base chart

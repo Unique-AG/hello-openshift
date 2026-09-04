@@ -1,6 +1,6 @@
 # sbx-templates — the SandboxTemplate Conduct instantiates per agent run, plus
 # its warm pool and CiliumNetworkPolicy (chart
-# oci://uniquecr.azurecr.io/helm/sbx-templates 2026.34.4, pulled via the ArgoCD
+# oci://uniquecr.azurecr.io/helm/sbx-templates 2026.37.0, pulled via the ArgoCD
 # uniquecr OCI repo credential in root/external-secret-argocd-uniquecr.yaml).
 #
 # This is the app that actually turns Conduct on: assistants-core asks the
@@ -44,7 +44,7 @@ spec:
   sources:
     - repoURL: uniquecr.azurecr.io
       chart: helm/sbx-templates
-      targetRevision: 2026.34.4
+      targetRevision: 2026.37.0
       helm:
         releaseName: sbx-templates
         valueFiles:

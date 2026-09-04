@@ -1,4 +1,4 @@
-# web-app-chat (chart helm/chat-app 2026.34.4) — Unique chat frontend.
+# web-app-chat (chart helm/chat-app 2026.37.0) — Unique chat frontend.
 # Flattened from the reference deployment's three value layers (defaults/web-apps/chat.yaml +
 # sbx/values/web-apps/_all.yaml + sbx/values/web-apps/chat.yaml), adapted to
 # hello-openshift:
@@ -23,7 +23,7 @@ image:
   registry: harbor.openshift.example.com
   repository: uniquecr/web-app-chat
   useDigest: false
-  tag: "2026.34.4"
+  tag: "2026.37.0"
 
 # The base chart hardcodes runAsUser 1000 (mergeOverwrite default that a null
 # override can't remove), which the OpenShift restricted-v2 SCC rejects. The

@@ -1,5 +1,5 @@
 # backend-service-ingestion — node-ingestion (chart oci://uniquecr.azurecr.io/
-# helm/ingestion 2026.34.4, pulled via the ArgoCD uniquecr OCI repo credential in
+# helm/ingestion 2026.37.0, pulled via the ArgoCD uniquecr OCI repo credential in
 # root/external-secret-argocd-uniquecr.yaml). Multi-source: chart + git values.
 # Wave 6, alongside the other chat backends. Served in-cluster at
 # ingestion.unique.svc:8091 and publicly at /ingestion via the Route in the chat
@@ -20,7 +20,7 @@ spec:
   sources:
     - repoURL: uniquecr.azurecr.io
       chart: helm/ingestion
-      targetRevision: 2026.34.4
+      targetRevision: 2026.37.0
       helm:
         releaseName: backend-service-ingestion
         valueFiles:

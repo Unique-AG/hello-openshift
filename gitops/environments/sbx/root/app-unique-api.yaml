@@ -1,9 +1,12 @@
-# backend-service-chat — chart oci://uniquecr.azurecr.io/helm/chat 2026.37.0 (uniquecr OCI repo
-# cred). Multi-source: chart + git values. Wave 6. Deployed into `unique`.
+# unique-api — chart oci://uniquecr.azurecr.io/helm/unique-api 2026.37.0 (uniquecr
+# OCI repo cred). Multi-source: chart + git values. Wave 6. Deployed into `unique`.
+# New in 2026.36: node-chat forwards the migrated /public/chat domains here, and
+# returns 502 on them if this service is absent. Same wave as the backends it
+# calls — it has no start-up dependency on them, only a request-time one.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: backend-service-chat
+  name: unique-api
   namespace: openshift-gitops
   annotations:
     argocd.argoproj.io/sync-wave: "6"
@@ -11,13 +14,13 @@ spec:
   project: hello-openshift
   sources:
     - repoURL: uniquecr.azurecr.io
-      chart: helm/chat
+      chart: helm/unique-api
       targetRevision: 2026.37.0
       helm:
-        releaseName: backend-service-chat
+        releaseName: unique-api
         skipSchemaValidation: true
         valueFiles:
-          - $values/gitops/environments/sbx/chat/values/backend-service-chat.yaml
+          - $values/gitops/environments/sbx/chat/values/unique-api.yaml
     - repoURL: git@github.com:Unique-AG/hello-openshift.git
       targetRevision: deploy
       ref: values

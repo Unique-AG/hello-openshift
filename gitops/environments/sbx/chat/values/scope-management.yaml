@@ -1,4 +1,4 @@
-# backend-service-scope-management (chart helm/scope-management 2026.34.4) —
+# backend-service-scope-management (chart helm/scope-management 2026.37.0) —
 # node-scope-management. node-chat's migration calls this service's GraphQL, so
 # it must be Running before the chat migration can complete.
 # Flattened from the reference deployment (defaults/backend-services/scope-management.yaml +
@@ -20,7 +20,7 @@ image:
   registry: harbor.openshift.example.com
   repository: uniquecr/backend-service-scope-management
   useDigest: false
-  tag: "2026.34.4"
+  tag: "2026.37.0"
 
 # Disable the Kong/Gateway-API HTTPRoutes (no Gateway API CRDs on this cluster).
 # hostname is a mandatory value even when every path is disabled.

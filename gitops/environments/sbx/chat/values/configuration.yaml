@@ -1,4 +1,4 @@
-# backend-service-configuration (chart helm/configuration 2026.34.4) —
+# backend-service-configuration (chart helm/configuration 2026.37.0) —
 # configuration-backend (feature-flag / theme service). node-chat and
 # scope-management read remote feature-flag config from this service at startup
 # (CONFIGURATION_BACKEND_URL); missing it makes those services exit 1.
@@ -18,7 +18,7 @@ image:
   registry: harbor.openshift.example.com
   repository: uniquecr/backend-service-configuration
   useDigest: false
-  tag: "2026.34.4"
+  tag: "2026.37.0"
 
 routes:
   hostname: openshift.example.com
@@ -32,7 +32,7 @@ routes:
 # NEW IN 2026.34: the chart ships extraRoutes.notifications-optout ENABLED by
 # default (a Kong HTTPRoute on /notifications, for the notification-bell work in
 # 2026.30/.34). The chart hard-fails when any route is enabled without the
-# Gateway API CRDs — `helm template` at 2026.34.4 aborted with
+# Gateway API CRDs — `helm template` at 2026.37.0 aborted with
 # "You can't use extraRoutes without CRDs installed. Install CRDs first."
 # There is no Gateway API on this cluster, so switch it off. If the notification
 # features are ever turned on here (FEATURE_FLAG_NEW_NOTIFICATION_BANNER_UN_23900

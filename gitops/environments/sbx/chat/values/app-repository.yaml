@@ -1,4 +1,4 @@
-# backend-service-app-repository (chart helm/app-repository 2026.34.4).
+# backend-service-app-repository (chart helm/app-repository 2026.37.0).
 # Flattened from the reference deployment (defaults/backend-services/app-repository.yaml +
 # sbx/values/backend-services/{_all,app-repository}.yaml), adapted:
 #   - image via the ECR pull-through cache.
@@ -13,7 +13,7 @@ image:
   registry: harbor.openshift.example.com
   repository: uniquecr/backend-service-app-repository
   useDigest: false
-  tag: "2026.34.4"
+  tag: "2026.37.0"
 
 # Disable the Kong HTTPRoutes (no Gateway API CRDs on this cluster).
 routes:

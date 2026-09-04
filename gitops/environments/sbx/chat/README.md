@@ -5,7 +5,7 @@ Serves the Unique chat UI at `https://openshift.example.com/chat`.
 ## What this deploys
 
 Root Applications (`gitops/environments/sbx/root/`), all pulling per-app charts
-from `oci://uniquecr.azurecr.io/helm/*:2026.34.4` via the ArgoCD OCI repo
+from `oci://uniquecr.azurecr.io/helm/*:2026.37.0` via the ArgoCD OCI repo
 credential (`external-secret-argocd-uniquecr.yaml`, ESO ← ASM
 `hello-openshift/sbx/acr-pull`):
 
@@ -13,6 +13,7 @@ credential (`external-secret-argocd-uniquecr.yaml`, ESO ← ASM
 |-----|-------|------|-----------|
 | `web-app-chat` | `chat-app` | chat frontend (served at `/chat`) | `unique` |
 | `backend-service-chat` | `chat` | node-chat backend | `unique` |
+| `unique-api` | `unique-api` | public-API forwarding target for node-chat (mandatory from 2026.36) | `unique` |
 | `backend-service-app-repository` | `app-repository` | app repo backend | `unique` |
 | `assistants-core` | `assistants-core` | AI / sandbox orchestrator | `unique` |
 | `chat` (infra) | this dir | ns, SCC, Route, ExternalSecrets | `unique` |

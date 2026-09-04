@@ -22,6 +22,7 @@ resources:
   - app-web-app-chat.yaml
   - app-web-app-admin.yaml
   - app-web-app-knowledge-upload.yaml
+  - app-unique-api.yaml
   - app-backend-chat.yaml
   - app-app-repository.yaml
   - app-assistants-core.yaml

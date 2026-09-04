@@ -1,4 +1,4 @@
-# backend-service-app-repository — chart oci://uniquecr.azurecr.io/helm/app-repository 2026.34.4 (uniquecr OCI repo
+# backend-service-app-repository — chart oci://uniquecr.azurecr.io/helm/app-repository 2026.37.0 (uniquecr OCI repo
 # cred). Multi-source: chart + git values. Wave 6. Deployed into `unique`.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -12,7 +12,7 @@ spec:
   sources:
     - repoURL: uniquecr.azurecr.io
       chart: helm/app-repository
-      targetRevision: 2026.34.4
+      targetRevision: 2026.37.0
       helm:
         releaseName: backend-service-app-repository
         skipSchemaValidation: false

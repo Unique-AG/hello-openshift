@@ -1,4 +1,4 @@
-# web-app-admin (chart helm/admin-app 2026.34.4) — the Unique admin UI, served at
+# web-app-admin (chart helm/admin-app 2026.37.0) — the Unique admin UI, served at
 # https://openshift.example.com/admin. Added 2026-08-21: the chat UI returns its
 # own 403 because nothing is provisioned in the app (no scopes, `userSpaces: []`,
 # both seeded assistants carry `access: []`) — authentication itself is fully
@@ -11,8 +11,9 @@
 #     (there is no api.* host here, so browser-side API URLs share the host).
 #   - image via the ECR pull-through cache (registry/repository split, pull by
 #     tag; digest verified present:
-#     uniquecr/web-app-admin:2026.34.4 = sha256:9ccf62eda9d6…).
-#   - chart pinned to 2026.34.4 to match every other app in this slice
+#     uniquecr/web-app-admin:2026.37.0 = sha256:df3a936d70884276… per the
+#     2026.37.0 release manifest).
+#   - chart pinned to 2026.37.0 to match every other app in this slice
 #     (the reference deployment runs 2026.31.0).
 #   - Kong/Gateway-API HTTPRoutes DISABLED (no Gateway API CRDs on this cluster);
 #     exposure is the OpenShift Route in chat/route-admin.yaml.
@@ -27,7 +28,7 @@ image:
   registry: harbor.openshift.example.com
   repository: uniquecr/web-app-admin
   useDigest: false
-  tag: "2026.34.4"
+  tag: "2026.37.0"
 
 # Exposure is an OpenShift Route, not the chart's Kong HTTPRoutes. Disable every
 # route path so no gateway.networking.k8s.io object is rendered (the base chart
@@ -101,7 +102,11 @@ env:
   FEATURE_FLAG_ENABLE_END_USER_SPACE_UN_8855: "true"
   FEATURE_FLAG_ABOUT_SPACE_SECTION_UN_10270: "true"
   FEATURE_FLAG_SIDE_MENU_NAVIGATION: "true"
-  FEATURE_FLAG_USER_API_KEY_GENERATION_UN_11416: "true"
+  # 2026.36 removed FEATURE_FLAG_USER_API_KEY_GENERATION_UN_11416 and converted it
+  # into this plain env setting, read per frontend app. Only the admin UI needs it
+  # here; web-app-chat / web-app-knowledge-upload leave it unset (= off), which is
+  # the behaviour they already had.
+  USER_API_KEY_GENERATION_ENABLED: "true"
 
 # {} not null — the per-app chart schema rejects null.
 nodeSelector: {}

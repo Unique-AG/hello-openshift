@@ -1,0 +1,97 @@
+# unique-api (chart helm/unique-api 2026.37.0) — NEW IN 2026.36, mandatory.
+#
+# Release 2026.36 starts the "Unique API" rollout: node-chat stops serving the
+# migrated /public/chat domains itself and forwards them to this service. The
+# first domain to move is Identity & access (/users, /groups, /company). With
+# the node-chat dependency switched off those routes answer 502 — they do NOT
+# fall back to the old in-node-chat implementation — which is why unique-api is
+# a hard requirement from .36 onward rather than an opt-in.
+# Rollout mechanics: https://unique-ch.atlassian.net/wiki/spaces/PUBDOC/pages/2582872074
+#
+# Adapted for this cluster:
+#   - image via the Harbor proxy cache (uniquecr project) rather than straight
+#     from ACR; sha256:b33ea5142d476406... per the 2026.37.0 release manifest.
+#   - Kong/Gateway-API HTTPRoutes DISABLED (no Gateway API CRDs on this
+#     cluster). Unlike the other per-app charts this one ships
+#     routes.paths.probe ENABLED by default, so it has to be switched off
+#     explicitly. Nothing external needs to reach unique-api here: node-chat
+#     calls it in-cluster at unique-api.unique.svc:80 (pod port 8096).
+#   - no database, no secrets, no migration Job — it is a stateless forwarder
+#     that reaches the other backends over plain HTTP.
+#   - the chart's internalServices dependency defaults already match this slice
+#     (chat:8093, configuration-backend:8095, ingestion:8091,
+#     scope-management:8094, app-repository:8088, all in `unique`), so the
+#     chart-generated CHAT_API_URL / CONFIGURATION_BACKEND_URL / … resolve with
+#     no overrides. compliance-records is NOT deployed here; the chart only
+#     references it from the egress NetworkPolicy, which stays off.
+#   - autoscaling off, one replica. The chart is the odd one out in shipping
+#     autoscaling ON with minReplicas 2; every other backend in this slice runs a
+#     single replica. At one replica the chart emits no PodDisruptionBudget at
+#     all, so pdb.maxUnavailable is set purely as a safety net: the chart default
+#     of 30% rounds down to zero allowed disruptions and would wedge node drains
+#     if the replica count were ever raised.
+#   - ENABLE_ROLE_AUTHORIZATION and ZITADEL_PROJECT_ID left at their chart
+#     defaults (unset). unique-api is only reachable from node-chat in-cluster,
+#     and node-chat forwards identity headers rather than the end user's token,
+#     so turning on JWT audience validation would reject every internal call.
+#   - env is left to the chart: its defaults (LOG_LEVEL info, MAX_HEAP_MB 200,
+#     AUDIT_LOG_DIR /dev/stdout) are already what this slice would set.
+#   - the fixed non-root UID 1000 this chart pins is covered by the nonroot-v2
+#     RoleBinding in components/chat/scc-rbac.yaml, which grants every SA in
+#     `unique`; nothing extra is needed.
+
+image:
+  registry: harbor.openshift.example.com
+  repository: uniquecr/unique/unique-api
+  # By tag, not digest: the chart's stamped digest refers to the ACR path and
+  # would not resolve against Harbor.
+  useDigest: false
+  tag: "2026.37.0"
+
+# hostname is mandatory (the chart fail()s without it) even though every path is
+# disabled.
+routes:
+  hostname: openshift.example.com
+  pathPrefix: /unique-api
+  paths:
+    default:
+      enabled: false
+    versioned:
+      enabled: false
+    probe:
+      enabled: false
+
+# All four are already disabled by default; pinned here so a future chart
+# release that flips one on cannot break the render on a Gateway-API-less
+# cluster, the way configuration's notifications-optout did in 2026.34.
+extraRoutes:
+  public-versioned:
+    enabled: false
+  swagger:
+    enabled: false
+  openapi:
+    enabled: false
+  gateway-api:
+    enabled: false
+
+prometheus:
+  enabled: false
+
+replicaCount: 1
+
+autoscaling:
+  enabled: false
+
+pdb:
+  maxUnavailable: 1
+
+podAnnotations:
+  reloader.stakater.com/auto: "true"
+
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 256Mi

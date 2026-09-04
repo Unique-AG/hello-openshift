@@ -1,4 +1,4 @@
-# assistants-core — chart oci://uniquecr.azurecr.io/helm/assistants-core 2026.34.4 (uniquecr OCI repo
+# assistants-core — chart oci://uniquecr.azurecr.io/helm/assistants-core 2026.37.0 (uniquecr OCI repo
 # cred). Multi-source: chart + git values. Wave 6. Deployed into `unique`.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -12,7 +12,7 @@ spec:
   sources:
     - repoURL: uniquecr.azurecr.io
       chart: helm/assistants-core
-      targetRevision: 2026.34.4
+      targetRevision: 2026.37.0
       helm:
         releaseName: assistants-core
         skipSchemaValidation: false

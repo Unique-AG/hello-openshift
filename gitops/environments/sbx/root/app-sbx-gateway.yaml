@@ -1,5 +1,5 @@
 # sbx-gateway — the MITM egress proxy every Conduct sandbox is forced through
-# (chart oci://uniquecr.azurecr.io/helm/sbx-gateway 2026.34.4, pulled via the
+# (chart oci://uniquecr.azurecr.io/helm/sbx-gateway 2026.37.0, pulled via the
 # ArgoCD uniquecr OCI repo credential in root/external-secret-argocd-uniquecr.yaml).
 # Wave 5, alongside the agent-sandbox controller and after the conduct app has
 # created the `sbx` namespace and its SCC binding at wave 4.
@@ -23,7 +23,7 @@ spec:
   sources:
     - repoURL: uniquecr.azurecr.io
       chart: helm/sbx-gateway
-      targetRevision: 2026.34.4
+      targetRevision: 2026.37.0
       helm:
         releaseName: sbx-gateway
         valueFiles:
