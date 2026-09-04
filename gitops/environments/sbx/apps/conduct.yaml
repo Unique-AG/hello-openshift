@@ -1,0 +1,14 @@
+# Conduct stack: kata peer-pods config, agent-sandbox controller,
+# and direct dependencies. Wave 4: after operators+platform.
+spec:
+  name: conduct
+  namespace: sbx
+  wave: "4"
+  path: gitops/environments/sbx/manifests/conduct
+  ignoreDifferences:
+    - group: external-secrets.io
+      kind: ExternalSecret
+      jqPathExpressions:
+        - .spec.data[].remoteRef.conversionStrategy
+        - .spec.data[].remoteRef.decodingStrategy
+        - .spec.data[].remoteRef.metadataPolicy

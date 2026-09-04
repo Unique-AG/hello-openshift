@@ -1,0 +1,20 @@
+# Pod-VM launch parameters for peer pods (sbx VPC). Instance type is
+# the per-sandbox EC2 cost knob.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: peer-pods-cm
+  namespace: openshift-sandboxed-containers-operator
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+data:
+  CLOUD_PROVIDER: aws
+  AWS_REGION: <AWS_REGION>
+  AWS_SUBNET_ID: subnet-0f5bbc6b7a96a264e
+  AWS_VPC_ID: vpc-0c1ba4cadbb943aca
+  # Cluster default SG (attached to the workers) — pod VMs join it so
+  # worker<->podvm agent traffic flows intra-SG. Required by the
+  # operator's AWS provider validation.
+  AWS_SG_IDS: sg-03f266ee3fe24449d
+  PODVM_INSTANCE_TYPE: t3.small
+  PROXY_TIMEOUT: 5m

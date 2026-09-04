@@ -1,0 +1,15 @@
+# backend-service-chat — chart oci://uniquecr.azurecr.io/helm/chat 2026.37.0 (uniquecr OCI repo
+# cred). Multi-source: chart + git values. Wave 6. Deployed into `unique`.
+spec:
+  name: backend-service-chat
+  namespace: unique
+  wave: "6"
+  sources:
+    - repoURL: uniquecr.azurecr.io
+      chart: helm/chat
+      targetRevision: 2026.37.0
+      helm:
+        releaseName: backend-service-chat
+        skipSchemaValidation: true
+        valueFiles:
+          - $values/gitops/environments/sbx/value-overlays/chat/backend-service-chat.yaml

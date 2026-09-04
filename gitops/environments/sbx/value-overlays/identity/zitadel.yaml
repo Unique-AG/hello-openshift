@@ -1,0 +1,183 @@
+# Zitadel values — mirrors QA's two layers flattened
+# (gitops-resources/defaults/preview/zitadel/values.yaml +
+# qa/gitops/3-system/zitadel/values.yaml). Deviations from QA:
+#   * images from public registries instead of the ACR mirror
+#     (same versions), so no imagePullSecrets
+#   * Kong HTTPRoutes (QA extraManifests) replaced by an OpenShift
+#     Route (identity/route-zitadel.yaml)
+#   * DB host/port/database/user are static configmapConfig values
+#     instead of QA's secret-sourced env vars; only passwords come
+#     from the zitadel-creds secret (ESO <- AWS Secrets Manager).
+#     "Admin" is the same non-superuser CNPG-managed `zitadel` role:
+#     database + grants are provisioned declaratively by CNPG, so the
+#     init job only runs the `zitadel` step (internals).
+#   * SSL Mode `require` instead of QA's verify-full — the CNPG CA
+#     secret lives in hello-openshift-data and can't be mirrored into
+#     this namespace with the AWS-backed ClusterSecretStore
+#   * sbx sizing: 1 replica, no HPA/PDB/topologySpreadConstraints
+#   * runAsUser/fsGroup nulled so OpenShift's restricted-v2 SCC can
+#     assign namespace-range UIDs (chart pins 1000 otherwise)
+#   * SKIPPED: SMTPConfiguration + MessageTexts (no SendGrid key in
+#     sbx) and SystemAPIUsers (QA ops break-glass key)
+#   * serviceAccount.create=false — the SA is owned as a TRACKED resource by
+#     the identity app instead of the chart's PreSync hook, see
+#     gitops/components/identity/zitadel/serviceaccount.yaml for why
+
+# The chart's own ServiceAccount is a PreSync hook, so ArgoCD does not track it
+# and cannot selfHeal it away from a half-finished sync (this cost 38 days of
+# Zitadel downtime in Jul/Aug 2026). Consume the tracked one shipped by the
+# identity app instead. The chart's Role/RoleBinding are NOT gated on this flag
+# (they hang off FirstInstance.Org.Machine) and still bind to this name.
+serviceAccount:
+  create: false
+  name: zitadel
+
+env:
+  - name: ZITADEL_DATABASE_POSTGRES_USER_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: zitadel-creds
+        key: password
+  - name: ZITADEL_DATABASE_POSTGRES_ADMIN_PASSWORD
+    valueFrom:
+      secretKeyRef:
+        name: zitadel-creds
+        key: password
+
+# QA pins v3.4.11, but v3 (any release, incl. latest v3.4.12) cannot
+# set up against PostgreSQL 18: migration 34_add_cache_schema creates
+# UNLOGGED partitioned tables, which PG18 rejects ("partitioned tables
+# cannot be unlogged", zitadel/zitadel#10712). The fix (PRs #11484 +
+# #11503) was only released on the v4 line (>= v4.11.0) — so sbx runs
+# chart 9.34.1's own default appVersion v4.13.1 instead of QA's pin.
+image:
+  repository: ghcr.io/zitadel/zitadel
+  tag: v4.13.1
+
+tools:
+  kubectl:
+    image:
+      tag: 1.35.1
+  wait4x:
+    image:
+      tag: "3.6"
+
+login:
+  enabled: false
+
+replicaCount: 1
+
+podSecurityContext:
+  runAsUser: null
+  fsGroup: null
+
+securityContext:
+  allowPrivilegeEscalation: false
+  runAsUser: null
+
+initJob:
+  # Database, role and ownership come from CNPG (data-services layer);
+  # only initialize ZITADEL's internals.
+  command: zitadel
+
+zitadel:
+  masterkeySecretName: zitadel-creds # key: masterkey
+  # The chart: https://github.com/zitadel/zitadel-charts/blob/main/charts/zitadel/values.yaml
+  configmapConfig:
+    # All values: https://github.com/zitadel/zitadel/blob/main/cmd/defaults.yaml
+    ExternalDomain: <DOMAIN_IDENTITY> # ! Changing this breaks the system
+    ExternalPort: 443 # ! Changing this breaks the system
+    ExternalSecure: true # ! Changing this breaks the system
+    Log:
+      Level: "info"
+    LogStore:
+      Access:
+        Stdout:
+          Enabled: true
+    TLS:
+      Enabled: false # CloudFront/ALB does this
+    Database:
+      Postgres:
+        Host: hello-openshift-postgres-rw.hello-openshift-data.svc
+        Port: 5432
+        Database: zitadel
+        MaxOpenConns: 50
+        MaxIdleConns: 10
+        MaxConnLifetime: 1h
+        MaxConnIdleTime: 5m
+        Options:
+        User:
+          Username: zitadel
+          SSL:
+            Mode: require
+        Admin:
+          Username: zitadel
+          SSL:
+            Mode: require
+    UserAgentCookie:
+      Name: uniqueid.useragent
+    Login:
+      LanguageCookieName: uniqueid.login.lang
+      CSRFCookieName: uniqueid.login.csrf
+    Quotas:
+      Access:
+        ExhaustedCookieKey: uniqueid.quota.exhausted
+    SystemDefaults:
+      Multifactors:
+        OTP:
+          Issuer: UNIQUE
+      KeyConfig:
+        # 90 days
+        PrivateKeyLifetime: 2160h
+        # 1year. Public key lifetime must be min 2x private key lifetime
+        PublicKeyLifetime: 8760h
+    DefaultInstance:
+      InstanceName: UNIQUE
+      DefaultLanguage: en
+      DomainPolicy:
+        UserLoginMustBeDomain: false
+        ValidateOrgDomain: false
+      LoginPolicy:
+        AllowDomainDiscovery: true
+        AllowRegister: false
+        IgnoreUnknownUsernames: true
+      PrivacyPolicy:
+        TOSLink: https://www.unique.ch/terms
+        PrivacyLink: https://www.unique.ch/privacy
+        SupportEmail: support@unique.ch
+      LabelPolicy:
+        PrimaryColor: "#ffffff"
+        BackgroundColor: "#fafafa"
+        WarnColor: "#d71c1c"
+        FontColor: "#000000"
+        PrimaryColorDark: "#1fb7ea"
+        BackgroundColorDark: "#02161d"
+        WarnColorDark: "#ed315d"
+        FontColorDark: "#ffffff"
+        HideLoginNameSuffix: true
+        ErrorMsgPopup: false
+        DisableWatermark: true
+    FirstInstance:
+      InstanceName: UNIQUE
+      DefaultLanguage: en
+      DomainPolicy:
+        UserLoginMustBeDomain: false
+        ValidateOrgDomain: false
+      LoginPolicy:
+        AllowDomainDiscovery: true
+        AllowRegister: false
+        IgnoreUnknownUsernames: true
+      Org:
+        Name: Cluster IAM
+        Human:
+          Username: root@cluster-iam.localhost
+          # Bootstrap credential, applied only on Zitadel's FIRST start.
+          #
+          # PasswordChangeRequired must be set EXPLICITLY. It is a real setting
+          # (ZITADEL_FIRSTINSTANCE_ORG_HUMAN_PASSWORDCHANGEREQUIRED) but it is
+          # absent from Zitadel's defaults.yaml, so it defaults to false -- the
+          # Go zero value. Without this line the password below stays valid
+          # indefinitely, which is not what "must be changed on first login"
+          # implied.
+          Password: "RootPassword1!" # nosemgrep # bootstrap only #gitleaks:allow
+          PasswordChangeRequired: true

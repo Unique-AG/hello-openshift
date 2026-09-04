@@ -1,0 +1,96 @@
+# The one ApplicationSet for this environment. Replaces the 26 hand-written
+# Application manifests that used to live in environments/sbx/root/.
+#
+# Why: every one of those files repeated the same project, destination server,
+# git repoURL, targetRevision, syncOptions and retry backoff. The git reference
+# alone appeared 26 times, which is why re-pointing the repo was a 26-file
+# change. Here it is stated once, and each app spec under apps/ carries only
+# what actually differs — its name, namespace, wave and chart pins.
+#
+# The three literal repoURL/targetRevision values below are stamped from
+# github.repoURL / github.targetRevision in instance-config.yaml by
+# scripts/configure-instance.sh. Do not hand-edit them.
+#
+# Adding an app: drop a spec in apps/. The generator picks it up on the next
+# reconcile — there is nothing to register.
+apiVersion: argoproj.io/v1alpha1
+kind: ApplicationSet
+metadata:
+  name: sbx
+  namespace: openshift-gitops
+spec:
+  goTemplate: true
+  # Fail loudly on a spec that is missing a field the template needs, rather
+  # than generating an Application with an empty namespace or name.
+  goTemplateOptions: ["missingkey=error"]
+  # Deleting this ApplicationSet must not delete the live workloads. This is
+  # also what makes the migration off the old root app-of-apps safe: the
+  # generated Applications reuse the same names, so they adopt the existing
+  # resources instead of recreating them.
+  preserveResourcesOnDeletion: true
+  generators:
+    - git:
+        repoURL: <GITHUB_REPO_URL>
+        revision: deploy
+        files:
+          - path: gitops/environments/sbx/apps/*.yaml
+  template:
+    metadata:
+      name: '{{ .spec.name }}'
+      namespace: openshift-gitops
+      annotations:
+        argocd.argoproj.io/sync-wave: '{{ .spec.wave }}'
+    spec:
+      project: hello-openshift
+      destination:
+        server: https://kubernetes.default.svc
+        namespace: '{{ .spec.namespace }}'
+  # Everything below is shared. An app spec overrides a piece of it only by
+  # setting the corresponding optional key (prune, syncOptions,
+  # ignoreDifferences).
+  templatePatch: |
+    spec:
+      {{- if hasKey .spec "path" }}
+      source:
+        repoURL: <GITHUB_REPO_URL>
+        targetRevision: <GIT_TARGET_REVISION>
+        path: {{ .spec.path }}
+      {{- else if hasKey .spec "source" }}
+      {{- /* A single chart that needs no $values ref (its overrides are inline
+             valuesObject). Kept as a single-source Application rather than a
+             one-element sources list, so ArgoCD does not treat it as
+             multi-source. */}}
+      source:
+        {{- .spec.source | toYaml | nindent 4 }}
+      {{- else }}
+      sources:
+        {{- .spec.sources | toYaml | nindent 4 }}
+        - repoURL: <GITHUB_REPO_URL>
+          targetRevision: <GIT_TARGET_REVISION>
+          ref: values
+      {{- end }}
+      syncPolicy:
+        automated:
+          # prune stays off almost everywhere: these charts create resources
+          # ArgoCD does not track cleanly (CRD-defaulted fields, webhook-mutated
+          # Secrets), and a false prune is destructive.
+          prune: {{ if .spec.prune }}true{{ else }}false{{ end }}
+          selfHeal: true
+        syncOptions:
+          {{- if hasKey .spec "syncOptions" }}
+          {{- .spec.syncOptions | toYaml | nindent 6 }}
+          {{- else }}
+          - ServerSideApply=true
+          - SkipDryRunOnMissingResource=true
+          - RespectIgnoreDifferences=true
+          {{- end }}
+        retry:
+          limit: 10
+          backoff:
+            duration: 30s
+            factor: 2
+            maxDuration: 5m
+      {{- if hasKey .spec "ignoreDifferences" }}
+      ignoreDifferences:
+        {{- .spec.ignoreDifferences | toYaml | nindent 4 }}
+      {{- end }}

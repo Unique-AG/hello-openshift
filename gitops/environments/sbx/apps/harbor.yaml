@@ -1,0 +1,23 @@
+# Harbor — the cluster's image registry, replacing the ECR pull-through cache.
+#
+# Sync wave 3: after platform (wave 2) so ODF/NooBaa is Healthy and the
+# ObjectBucketClaim is bound, and before conduct (4) / chat (5) / backends (6)
+# whose images are pulled THROUGH Harbor. ArgoCD holds a wave until the previous
+# one is healthy, which is exactly the ordering guarantee this needs.
+#
+# prune: false, mirroring the cilium app. Pruning the registry every workload
+# pulls from would be self-inflicted downtime.
+spec:
+  name: harbor
+  namespace: harbor
+  wave: "3"
+  sources:
+    - repoURL: https://helm.goharbor.io
+      chart: harbor
+      targetRevision: 1.19.2
+      helm:
+        valueFiles:
+          - $values/gitops/environments/sbx/value-overlays/platform/harbor.yaml
+  syncOptions:
+    - ServerSideApply=true
+    - RespectIgnoreDifferences=true

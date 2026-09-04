@@ -24,7 +24,7 @@ actually tracks. Updates flow **forward only** (`main` → `deploy`).
 | **Release** | a Git tag `202X.XX.X` on `main` naming a complete set of chart versions and configuration |
 | **Flow direction** | always forward: `feat/*` → `main` → `deploy`. Never `deploy` → `main` |
 | **Infrastructure** | Terraform, three stacks, applied **by hand** via the Makefile — not by CI |
-| **In-cluster** | ArgoCD app-of-apps, reconciled automatically from `deploy` |
+| **In-cluster** | one ArgoCD ApplicationSet generating an Application per spec in `apps/`, reconciled automatically from `deploy` |
 | **What varies** | **version**, **release config** and **instance config**, each with its own home |
 
 ---
@@ -53,10 +53,11 @@ Zitadel object IDs live in gitignored files created from `.template`.
 
 ### `deploy` — the deployment branch
 
-Every ArgoCD Application in `gitops/environments/*/root/` uses
+The ApplicationSet in `gitops/environments/<env>/argo/` points at
 `targetRevision: deploy`, so **a push to `deploy` is a deployment** for
-everything inside the cluster. The branch diverges forward from `main` and is
-never merged back.
+everything inside the cluster. The git reference is stated once, there, rather
+than repeated on every Application. The branch diverges forward from `main` and
+is never merged back.
 
 A fresh clone has no `deploy` branch. Create it before bootstrapping ArgoCD, or
 every Application fails to resolve its source:
@@ -99,9 +100,30 @@ this repository does not have. CI validates; humans apply.
 
 ### Track 2 — In-cluster: ArgoCD
 
-ArgoCD watches `deploy` and reconciles an app-of-apps root
-(`gitops/environments/<env>/root/`) — one Application per component, ordered by
-sync wave. This is fully automatic: merge to `deploy`, and the cluster follows.
+ArgoCD watches `deploy`. One ApplicationSet
+(`gitops/environments/<env>/argo/appsets.yaml`) generates an Application per
+spec in `gitops/environments/<env>/apps/`, ordered by sync wave. This is fully
+automatic: merge to `deploy`, and the cluster follows.
+
+An app spec carries only what differs between apps — name, namespace, wave and
+chart pins — in one of three source shapes:
+
+| Key | Meaning |
+|---|---|
+| `path` | a kustomize directory in this repo; the ApplicationSet supplies repo + revision |
+| `sources` | one or more charts; the ApplicationSet appends the `ref: values` git source |
+| `source` | a single chart needing no `$values` ref (inline `valuesObject`) |
+
+with optional `prune`, `syncOptions` and `ignoreDifferences` overrides.
+Everything else — project, destination server, sync options, retry backoff — is
+declared once in the ApplicationSet. Adding an app is dropping a file in
+`apps/`; there is nothing to register.
+
+The AppProject, the OCI repo credential and the ApplicationSet itself are the
+only ArgoCD objects that are **not** self-healing, and are applied by hand once
+per cluster with `oc apply -k gitops/bootstrap/envs/<env>`. The AppProject has
+to exist before any Application in it can sync, so it cannot be managed by an
+Application inside that project.
 
 The waves matter and are load-bearing; see the table in the
 [README](../README.md#gitops-layers).
@@ -114,9 +136,21 @@ Three kinds of content kept strictly apart, each changing for its own reason.
 
 | Concern | Examples | Changes when… | Lives in | On |
 |---|---|---|---|---|
-| **Version** | Helm chart version, image tag | a new Unique **release** | `targetRevision:` in `gitops/environments/<env>/root/app-*.yaml` | `main`, at each release tag |
-| **Release config** | feature-flag defaults, env-var wiring, resource defaults | a new **release** | `gitops/components/` and the `values/` files | `main`, at each release tag |
-| **Instance config** | cluster domain, Zitadel IDs, account id, registry host, ACM ARN, per-env sizing | a new **environment or cluster** | `gitops/environments/<env>/`, `environments/<env>/*.tfvars`, and the two `.env` files | `deploy` (and gitignored, for the two `.env` files) |
+| **Version** | Helm chart version, image tag | a new Unique **release** | `gitops/environments/<env>/apps/*.yaml` | `main`, at each release tag |
+| **Release config** | feature-flag defaults, env-var wiring, resource defaults | a new **release** | the per-app chart itself, shipped by Unique | — (arrives with the chart version) |
+| **Instance config** | cluster domain, Zitadel IDs, account id, registry host, ACM ARN, per-env sizing | a new **environment or cluster** | `gitops/environments/<env>/instance-config.yaml` and `value-overlays/`, plus `environments/<env>/*.tfvars` | `deploy` |
+
+> **There is no `defaults/` directory here, deliberately.** `hello-aws` needs
+> one because its charts are generic — a single `backend-service` chart serves
+> about a dozen services, so the per-service wiring has to live somewhere. This
+> repository uses **per-app charts** (`helm/chat`, `helm/admin-app`, …) at the
+> release version, and the chart *is* the release-config layer, shipped and
+> versioned by Unique. A `defaults/` tree would hold only duplication and imply
+> a separation that does not exist. `value-overlays/` are exactly what the name
+> says: overrides on top of the chart's own defaults.
+>
+> The practical consequence: adopting a release changes version pins in `apps/`
+> and, occasionally, one overlay. It never involves merging a `defaults/` folder.
 
 The rule for deciding where something belongs: **if it would still be true on
 another cluster, it is release content; if it names this cluster, it is instance
@@ -143,7 +177,9 @@ from the overlay rather than baked in.
   `environments/common.tfvars` onto the resources it manages, so an AWS resource
   traces back to the configuration version that created it.
 - **Image registry** — image *tags* are version content; the *registry* host is
-  instance config, propagated by `scripts/set-cluster-domain.sh`.
+  instance config (`registry.host`), propagated by
+  `scripts/configure-instance.sh`.
+- **Diffing two releases** — `git diff 202X.21.0 202X.22.0 -- gitops/environments/sbx/apps`.
 
 ---
 
@@ -151,8 +187,11 @@ from the overlay rather than baked in.
 
 1. **Cut on `main`** — bump `targetRevision` on the affected Applications,
    update any newly-required configuration in `gitops/components/` or the
-   `values/` files, and bump Terraform provider versions if the release needs
-   it. Open a PR; CI gates it; squash-merge.
+   `value-overlays/` files, and bump Terraform provider versions if the release
+   needs it. **Render every chart against your own values before pushing** —
+   2026.34 shipped `configuration`'s `extraRoutes.notifications-optout` enabled
+   by default, which hard-fails without the Gateway API CRDs this cluster does
+   not have. Open a PR; CI gates it; squash-merge.
 2. **Tag** — tag the merge commit `202X.XX.X`.
 3. **Adopt** — merge the tag forward into `deploy` and supply any new instance
    values. Push.
@@ -202,8 +241,9 @@ and ask a question that requires retrieval.
   place; plan data-tier rollbacks deliberately.
 - **The cluster stack** is the exception: destroying and rebuilding `2-cluster`
   invalidates the CloudNativePG credentials and changes the cluster domain. Both
-  have propagation scripts (`sync-db-passwords.sh`, `set-cluster-domain.sh`) —
-  run them before concluding anything is broken.
+  have propagation paths (`sync-db-passwords.sh`, and `cluster.domain` in
+  `instance-config.yaml` applied with `configure-instance.sh`) — use them before
+  concluding anything is broken.
 
 ---
 

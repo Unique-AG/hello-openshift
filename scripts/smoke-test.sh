@@ -35,11 +35,18 @@ ok()   { [ "$QUIET" -eq 1 ] || printf "  \033[32mPASS\033[0m  %-38s %s\n" "$1" "
 bad()  {                       printf "  \033[31mFAIL\033[0m  %-38s %s\n" "$1" "${2:-}"; F=$((F+1)); }
 skip() { [ "$QUIET" -eq 1 ] || printf "  ----  %-38s %s\n" "$1" "${2:-}"; SK=$((SK+1)); }
 
-# the registry hostname is the one value the pull check needs; it lives in the
-# same env file that set-cluster-domain.sh owns
-HARBOR_REGISTRY_HOST=harbor.openshift.example.com
-[ -f gitops/environments/sbx/cluster-domain.env ] && \
-  . gitops/environments/sbx/cluster-domain.env 2>/dev/null || true
+# The registry hostname and project are the values the image-pull check needs.
+# Read straight from the environment's instance-config.yaml so this script can
+# never disagree with what is stamped into the gitops tree.
+INSTANCE_CONFIG=${INSTANCE_CONFIG:-gitops/environments/sbx/instance-config.yaml}
+if [ -f "$INSTANCE_CONFIG" ] && command -v yq >/dev/null 2>&1; then
+  HARBOR_REGISTRY_HOST=$(yq -r '.registry.host' "$INSTANCE_CONFIG")
+  REGISTRY_PROJECT=$(yq -r '.registry.project' "$INSTANCE_CONFIG")
+else
+  echo "  ----  instance-config.yaml or yq unavailable; skipping registry checks" >&2
+  HARBOR_REGISTRY_HOST=""
+  REGISTRY_PROJECT=""
+fi
 
 say "== 1. cluster =="
 N=$(oc get nodes --no-headers 2>/dev/null | wc -l | tr -d ' ')
@@ -88,7 +95,7 @@ spec:
   restartPolicy: Never
   containers:
     - name: p
-      image: "${HARBOR_REGISTRY_HOST}/uniquecr/web-app-chat:2026.37.0"
+      image: "${HARBOR_REGISTRY_HOST}/${REGISTRY_PROJECT}/web-app-chat:2026.37.0"
       command: ["sh","-c","sleep 2"]
 YAML
 PULL="timeout"
@@ -99,7 +106,7 @@ for _ in $(seq 1 30); do
   case "$rs" in ErrImagePull|ImagePullBackOff) PULL="pull failed"; break;; esac
   sleep 5
 done
-[ "$PULL" = "ok" ] && ok "image pull through Harbor" "uniquecr/web-app-chat:2026.37.0" \
+[ "$PULL" = "ok" ] && ok "image pull through Harbor" "${REGISTRY_PROJECT}/web-app-chat:2026.37.0" \
   || bad "image pull through Harbor" "$PULL"
 oc -n harbor delete pod smoke-pull --ignore-not-found >/dev/null 2>&1
 

@@ -1,0 +1,39 @@
+# Harbor's front door.
+#
+# Why a hand-written Route instead of the chart's expose.type:
+#   * expose.type: "route" in this chart renders a Gateway API HTTPRoute with
+#     parentRefs, NOT an OpenShift Route -- there is no Gateway here.
+#   * expose.type: "ingress" with certSource: none emits `secretName: ""`, an
+#     empty string, which is fragile input for the ingress-to-route controller.
+# So the chart is set to expose.type: clusterIP and the Route lives here.
+#
+# The host MUST be on the cluster's own apps domain: that wildcard carries a
+# publicly trusted Let's Encrypt certificate, so CRI-O on the nodes trusts
+# Harbor with no additional CA and no MachineConfig -- neither of which is
+# available on ROSA HCP. The ImageDigestMirrorSet route is closed for the
+# same reason: it needs a MachineConfig to install the CA.
+#
+# The host contains the per-cluster shard segment and therefore CHANGES ON EVERY
+# REBUILD. A stale value here breaks every image pull in the cluster. It is
+# propagated from registry.uiHost in gitops/environments/sbx/instance-config.yaml
+# by scripts/configure-instance.sh -- do not hand-edit it.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: harbor
+  namespace: harbor
+  annotations:
+    # container image layers are large; the router must not cut uploads short
+    haproxy.router.openshift.io/timeout: 600s
+spec:
+  host: <REGISTRY_UI_HOST>
+  to:
+    kind: Service
+    name: harbor
+  port:
+    # MUST be the service's port NAME, not the number -- a numeric targetPort
+    # makes the router return 503 (learned the hard way on the chat routes)
+    targetPort: http
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

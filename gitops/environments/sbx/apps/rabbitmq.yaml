@@ -1,0 +1,16 @@
+# RabbitMQ (Conduct dependency) — mirrors QA
+# (3-system/rabbitmq/app.yaml): bitnami chart 16.0.14 into `eventing`.
+# Credentials/load-definition ExternalSecrets ship with the conduct
+# app (wave 4); wave 5 so they exist before the broker starts.
+# prune: false — pruning a message broker loses queues/messages.
+spec:
+  name: rabbitmq
+  namespace: eventing
+  wave: "5"
+  sources:
+    - repoURL: https://charts.bitnami.com/bitnami
+      chart: rabbitmq
+      targetRevision: 16.0.14
+      helm:
+        valueFiles:
+          - $values/gitops/environments/sbx/value-overlays/conduct/rabbitmq.yaml

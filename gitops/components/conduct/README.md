@@ -12,7 +12,7 @@ noted.
 | Namespaces (`system`, `sbx`, `eventing`, `finance-gpt`) | `gitops/components/conduct/{agent-sandbox,rabbitmq,qdrant}/` (synced by the `conduct` app, wave 4) |
 | ExternalSecrets (RabbitMQ credentials, LiteLLM env) | `gitops/environments/sbx/conduct/external-secret-*.yaml` (wave 4) |
 | Helm values | `gitops/environments/sbx/conduct/values/*.yaml` (referenced via `$values`) |
-| Applications | `gitops/environments/sbx/root/app-{rabbitmq,qdrant,litellm,agent-sandbox-controller}.yaml` (wave 5) |
+| Applications | `gitops/environments/sbx/apps/{rabbitmq,qdrant,litellm,agent-sandbox-controller}.yaml` (wave 5) |
 
 ## Services and pinned chart versions
 
@@ -51,7 +51,7 @@ egress runs without the MITM proxy.
 ## Skipped / substituted vs QA
 
 - **Tailscale ingress** (RabbitMQ management UI, Qdrant, LiteLLM
-  `*.alpine-bowfin.ts.net` hosts + `PROXY_BASE_URL`): skipped — no Tailscale
+  `*.<tailnet>.ts.net` hosts + `PROXY_BASE_URL`): skipped — no Tailscale
   operator here.
 - **ACR-mirrored images/charts** (`uniqueapp.azurecr.io/...`) and the
   `image-pull-secret-v2026.05` pull secret: substituted with the public

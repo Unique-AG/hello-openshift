@@ -1,0 +1,15 @@
+# sbx uses the base sizing as-is (smallest-viable); bigger
+# environments patch instance counts / storage here.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../../../components/data-services/postgres
+  - ../../../../components/data-services/redis
+  - external-secret-redis.yaml
+  - external-secret-zitadel-db.yaml
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: hello-openshift
+      unique.ag/environment: sbx

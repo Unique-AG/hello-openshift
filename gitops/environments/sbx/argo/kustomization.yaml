@@ -1,0 +1,19 @@
+# The ArgoCD control plane for this environment: the AppProject its Applications
+# run in, the OCI repo credential they pull charts with, and the ApplicationSet
+# that generates them from apps/.
+#
+# Applied BY HAND, once per cluster, via `oc apply -k gitops/bootstrap/envs/sbx`.
+# It replaces the old single hand-applied root-sbx Application.
+#
+# These three are deliberately not self-healing, for the same reason the rest of
+# gitops/bootstrap is not: the AppProject has to exist before any Application in
+# it can sync, so it cannot be managed by an Application inside that project
+# without a chicken-and-egg. Everything downstream of the ApplicationSet IS
+# self-healing.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - appproject.yaml
+  - external-secret-argocd-uniquecr.yaml
+  - appsets.yaml

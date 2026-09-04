@@ -1,0 +1,39 @@
+# An AWS config file for the litellm pod, defining a profile that resolves the
+# Bedrock role through boto3's own web-identity provider.
+#
+# WHY THIS EXISTS — litellm cannot sign Bedrock requests with IRSA credentials on
+# any of its other credential paths. All three were tested inside the running pod
+# against the same working IRSA session:
+#
+#   1. ambient env (AWS_ROLE_ARN + AWS_WEB_IDENTITY_TOKEN_FILE, no litellm params)
+#        -> 403 "The security token included in the request is invalid"
+#   2. explicit aws_access_key_id + aws_secret_access_key + aws_session_token,
+#      copied from the SAME session boto3 signs with successfully
+#        -> same 403, which proves the fault is litellm's handling of temporary
+#           credentials rather than how they are supplied to it
+#   3. aws_profile_name pointing at this profile
+#        -> OK
+#
+# `_auth_with_aws_profile` builds `boto3.Session(profile_name=...)` and lets
+# botocore own the AssumeRoleWithWebIdentity exchange and the hourly refresh, so
+# the broken code path is bypassed entirely. That keeps IRSA — no long-lived AWS
+# access keys anywhere, which was the alternative.
+#
+# Mounted read-only at /etc/aws/config with AWS_CONFIG_FILE pointing at it (see
+# conduct/values/litellm.yaml). Consumed by every bedrock/* entry in model_list
+# via `aws_profile_name: bedrock`.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: litellm-aws-config
+  namespace: system
+  annotations:
+    # Wave 4 with the rest of conduct, so it exists before the litellm app (wave 5).
+    argocd.argoproj.io/sync-wave: "4"
+data:
+  config: |
+    [profile bedrock]
+    role_arn = arn:aws:iam::<AWS_ACCOUNT_ID>:role/rosa-uq-openshift-sbx-bedrock
+    web_identity_token_file = /var/run/secrets/eks.amazonaws.com/serviceaccount/token
+    role_session_name = litellm-bedrock
+    region = <AWS_REGION>

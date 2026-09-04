@@ -1,0 +1,18 @@
+# unique-api — chart oci://uniquecr.azurecr.io/helm/unique-api 2026.37.0 (uniquecr
+# OCI repo cred). Multi-source: chart + git values. Wave 6. Deployed into `unique`.
+# New in 2026.36: node-chat forwards the migrated /public/chat domains here, and
+# returns 502 on them if this service is absent. Same wave as the backends it
+# calls — it has no start-up dependency on them, only a request-time one.
+spec:
+  name: unique-api
+  namespace: unique
+  wave: "6"
+  sources:
+    - repoURL: uniquecr.azurecr.io
+      chart: helm/unique-api
+      targetRevision: 2026.37.0
+      helm:
+        releaseName: unique-api
+        skipSchemaValidation: true
+        valueFiles:
+          - $values/gitops/environments/sbx/value-overlays/chat/unique-api.yaml

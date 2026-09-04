@@ -1,0 +1,28 @@
+# LiteLLM proxy + its dedicated cache Redis (Conduct dependency) —
+# mirrors QA (3-system/litellm/app.yaml) into `system` (QA's default
+# destination namespace). Same litellm-helm digest pin as QA (the pin
+# resolves on public ghcr.io). The litellm-extras source (private
+# infra repo, Azure Key Vault wiring) is SKIPPED — replaced by the
+# `litellm` ExternalSecret in the conduct app (wave 4); wave 5 so the
+# secret exists before the migration job runs.
+# QA's redis chart comes from its ACR mirror at a digest (# 0.16.9);
+# substituted with the same version from the public ot-helm repo.
+# Note: oci:// sources need ArgoCD >= 3.1 (native OCI support).
+spec:
+  name: litellm
+  namespace: system
+  wave: "5"
+  sources:
+    - repoURL: oci://ghcr.io/berriai/litellm-helm
+      path: .
+      targetRevision: sha256:83d2427c380bdc7f8af1560614c570b03a28ef836dd5cada0ed595f175a8b9d9 # 1.97.0
+      helm:
+        valueFiles:
+          - $values/gitops/environments/sbx/value-overlays/conduct/litellm.yaml
+    - repoURL: https://ot-container-kit.github.io/helm-charts
+      chart: redis
+      targetRevision: 0.16.9
+      helm:
+        releaseName: litellm-redis-ot
+        valueFiles:
+          - $values/gitops/environments/sbx/value-overlays/conduct/litellm-redis.yaml

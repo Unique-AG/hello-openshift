@@ -1,0 +1,63 @@
+# sbx-templates (chart helm/sbx-templates 2026.37.0) — the SandboxTemplate that
+# Conduct instantiates per agent run, plus its network policy. This is the piece
+# that actually turns Conduct on: assistants-core asks the agent-sandbox
+# controller for a Sandbox, and the controller builds pods from this template.
+#
+# Prerequisites verified on the live cluster before enabling:
+#   - agent-sandbox-controller >= 0.4.6-rc.1 (bumped in root/app-agent-sandbox-controller.yaml).
+#     The v0.4.5 CRD's SandboxTemplate spec has no `service` field and would
+#     silently prune `sandboxTemplate.service: true`.
+#   - RuntimeClass `kata-vm-isolation` exists. NOTE it now resolves to handler
+#     `runc`, so sandboxes are ORDINARY CONTAINERS — no VM boundary. Real
+#     peer-pods isolation is impossible on ROSA HCP (no MCO to install the
+#     kata-remote node shim); see components/platform/kata/runtimeclass-alias.yaml.
+#     Treat sandbox isolation here as namespace/cgroup + NetworkPolicy only.
+#   - nonroot-v2 SCC granted in `sbx` (conduct/scc-sbx-nonroot.yaml) — the runtime
+#     pins UID/GID/fsGroup 65534, which restricted-v2 rejects.
+#   - sbx-gateway deployed in `sbx` (conduct/values/sbx-gateway.yaml): the runtime
+#     hardcodes HTTP(S)_PROXY at sbx-gateway.sbx.svc:3128 and the Cilium policy
+#     permits egress only through it.
+#
+# The chart's default network policies were checked against this cluster and left
+# unchanged because their selectors already match: the router pods carry
+# `app: sandbox-router` and litellm carries `app.kubernetes.io/name: litellm`,
+# both in ns `system`, and both namespaces have `kubernetes.io/metadata.name`.
+
+image:
+  # Pull the polyagent runtime through the ECR pull-through cache instead of
+  # straight from ACR — the workers authenticate to ECR by IAM and hold no ACR
+  # pull secret. Verified reachable at
+  # uniquecr/unique/unique-polyagent-001:2026.37.0, and its digest
+  # (sha256:4dd716de0bcf38db...) matches the chart's own stamped pin for 2026.37.0.
+  registry: <REGISTRY_HOST>
+  repository: uniquecr/unique/unique-polyagent-001
+  # By tag, not digest: the chart's stamped digest refers to the Azure path and
+  # would not resolve against the ECR registry.
+  useDigest: false
+  tag: "2026.37.0"
+
+sandboxTemplate:
+  enabled: true
+  name: unique-polyagent-001
+  # Headless Service per sandbox — needs controller >= 0.4.6-rc.1 (see above).
+  service: true
+  runtimeClassName: kata-vm-isolation
+  # No ACR pull secret here; the ECR pull-through cache covers image access.
+  # Left empty so the chart does not reference image-pull-secret-v2026.05, which
+  # does not exist on this cluster.
+  imagePullSecrets: []
+  # The MITM CA the sandbox must trust, produced by sbx-gateway's chart into the
+  # egress-mitm-ca Secret in this namespace.
+  egressProxyCA:
+    enabled: true
+    secretName: egress-mitm-ca
+    secretKey: tls.crt
+    mountPath: /etc/ssl/egress-mitm
+    fileName: ca-cert.pem
+    optional: true
+  # Never enable: ships unredacted customer data to Loki.
+  allowInsecureLogging: false
+  insecureVerboseLogging: {}
+
+# {} not null — the per-app chart schema rejects null.
+nodeSelector: {}

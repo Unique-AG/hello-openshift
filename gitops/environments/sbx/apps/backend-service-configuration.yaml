@@ -1,0 +1,17 @@
+# backend-service-configuration — chart oci://uniquecr.azurecr.io/helm/configuration
+# 2026.37.0 (uniquecr OCI repo cred). Multi-source: chart + git values. Wave 6.
+# Deployed into `unique`. Serves remote feature-flag config read by node-chat and
+# scope-management at startup.
+spec:
+  name: backend-service-configuration
+  namespace: unique
+  wave: "6"
+  sources:
+    - repoURL: uniquecr.azurecr.io
+      chart: helm/configuration
+      targetRevision: 2026.37.0
+      helm:
+        releaseName: backend-service-configuration
+        skipSchemaValidation: true
+        valueFiles:
+          - $values/gitops/environments/sbx/value-overlays/chat/configuration.yaml

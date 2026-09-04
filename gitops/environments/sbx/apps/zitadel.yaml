@@ -1,0 +1,19 @@
+# Zitadel (IAM) — mirrors QA (3-system/zitadel/app.yaml): chart
+# 9.34.1 into `zitadel`. QA pins the OCI mirror at a digest
+# (# 9.34.1); substituted with the same version from the official
+# chart repo. Namespace/creds/route ship with the identity app
+# (wave 4); wave 5 so the zitadel-creds secret exists before the
+# chart's init/setup jobs (helm pre-install hooks -> ArgoCD PreSync)
+# run. prune: false — pruning an IAM system locks everyone out.
+spec:
+  name: zitadel
+  namespace: zitadel
+  wave: "5"
+  sources:
+    - repoURL: https://charts.zitadel.com
+      chart: zitadel
+      targetRevision: 9.34.1
+      helm:
+        releaseName: zitadel
+        valueFiles:
+          - $values/gitops/environments/sbx/value-overlays/identity/zitadel.yaml

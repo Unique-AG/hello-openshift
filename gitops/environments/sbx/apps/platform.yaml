@@ -1,0 +1,6 @@
+spec:
+  name: platform
+  namespace: hello-openshift-system
+  wave: "2"
+  path: gitops/environments/sbx/manifests/platform
+  prune: true

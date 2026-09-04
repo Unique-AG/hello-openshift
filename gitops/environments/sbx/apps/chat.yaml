@@ -1,0 +1,21 @@
+# Chat slice infra: the `unique` namespace, nonroot-v2 SCC grant, the public
+# /chat OpenShift Route, and the ExternalSecrets (DB app_user password, RabbitMQ
+# connection) the backends consume. Wave 5 — after data-services/conduct
+# (Postgres, RabbitMQ, Redis, LiteLLM) and before the chat helm apps (wave 6),
+# so the namespace and secrets exist when the charts render.
+spec:
+  name: chat
+  namespace: unique
+  wave: "5"
+  path: gitops/environments/sbx/manifests/chat
+  ignoreDifferences:
+    - group: external-secrets.io
+      kind: ExternalSecret
+      jqPathExpressions:
+        - .spec.data[].remoteRef.conversionStrategy
+        - .spec.data[].remoteRef.decodingStrategy
+        - .spec.data[].remoteRef.metadataPolicy
+        - .spec.dataFrom[].extract.conversionStrategy
+        - .spec.dataFrom[].extract.decodingStrategy
+        - .spec.dataFrom[].extract.metadataPolicy
+        - .spec.target.deletionPolicy

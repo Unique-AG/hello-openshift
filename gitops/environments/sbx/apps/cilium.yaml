@@ -1,0 +1,17 @@
+# CNI — installed by hand at bootstrap (cluster is no-CNI), adopted
+# and kept in sync by ArgoCD from then on. prune: false — pruning the
+# CNI takes down all cluster networking.
+spec:
+  name: cilium
+  namespace: cilium
+  wave: "1"
+  sources:
+    - repoURL: https://helm.cilium.io
+      chart: cilium
+      targetRevision: 1.18.9
+      helm:
+        valueFiles:
+          - $values/gitops/bootstrap/cilium/values.yaml
+  syncOptions:
+    - ServerSideApply=true
+    - RespectIgnoreDifferences=true

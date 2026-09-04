@@ -1,0 +1,15 @@
+# backend-service-app-repository — chart oci://uniquecr.azurecr.io/helm/app-repository 2026.37.0 (uniquecr OCI repo
+# cred). Multi-source: chart + git values. Wave 6. Deployed into `unique`.
+spec:
+  name: backend-service-app-repository
+  namespace: unique
+  wave: "6"
+  sources:
+    - repoURL: uniquecr.azurecr.io
+      chart: helm/app-repository
+      targetRevision: 2026.37.0
+      helm:
+        releaseName: backend-service-app-repository
+        skipSchemaValidation: false
+        valueFiles:
+          - $values/gitops/environments/sbx/value-overlays/chat/app-repository.yaml

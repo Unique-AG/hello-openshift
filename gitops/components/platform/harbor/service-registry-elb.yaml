@@ -17,16 +17,16 @@
 #
 # The Route in route.yaml stays: it is fine for humans using the Harbor UI.
 #
-# TLS terminates at the ELB using the ACM wildcard *.openshift.example.com,
+# TLS terminates at the ELB using the ACM wildcard *.<DOMAIN_BASE>,
 # which is publicly trusted -- so CRI-O needs no extra CA, which matters because
 # injecting one would need the MachineConfig Operator that ROSA HCP does not
 # expose. The ELB speaks plain HTTP to Harbor's nginx behind it.
 #
-# Reached as harbor.openshift.example.com via a Route53 PRIVATE hosted zone
+# Reached as <REGISTRY_HOST> via a Route53 PRIVATE hosted zone
 # scoped to exactly that name (terraform/2-cluster/harbor-dns.tf). Scoped
-# deliberately: a private zone for the parent openshift.example.com would
+# deliberately: a private zone for the parent <DOMAIN_BASE> would
 # shadow the entire domain inside the VPC and break in-cluster calls to
-# id.openshift.example.com, which is Zitadel's OIDC issuer.
+# <DOMAIN_IDENTITY>, which is Zitadel's OIDC issuer.
 apiVersion: v1
 kind: Service
 metadata:

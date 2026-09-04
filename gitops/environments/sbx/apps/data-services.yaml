@@ -1,0 +1,14 @@
+# prune: false — pruning here deletes databases. Deliberate removals
+# are done with an explicit `argocd app sync --prune`.
+spec:
+  name: data-services
+  namespace: hello-openshift-data
+  wave: "3"
+  path: gitops/environments/sbx/manifests/data-services
+  ignoreDifferences:
+    - group: external-secrets.io
+      kind: ExternalSecret
+      jqPathExpressions:
+        - .spec.data[].remoteRef.conversionStrategy
+        - .spec.data[].remoteRef.decodingStrategy
+        - .spec.data[].remoteRef.metadataPolicy

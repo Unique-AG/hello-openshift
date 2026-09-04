@@ -1,0 +1,17 @@
+# sbx keeps installPlanApproval: Automatic (base default). A
+# prod-shaped environment would patch each Subscription to Manual +
+# startingCSV here.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../../../components/operators/postgres-operator
+  - ../../../../components/operators/redis-operator
+  - ../../../../components/operators/external-secrets-operator
+  - ../../../../components/operators/odf-operator
+  - ../../../../components/operators/sandboxed-containers
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: hello-openshift
+      unique.ag/environment: sbx

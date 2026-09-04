@@ -1,0 +1,25 @@
+# Public path-based Route for the Unique admin UI. Same edge model as
+# route-chat.yaml: TLS terminates at CloudFront/ALB and reaches the router as
+# plain HTTP:80, so this is a non-TLS Route (a tls/redirect policy would loop).
+# Path /admin -> the admin-app frontend service.
+#
+# GOTCHA (cost a router 503 once already, see routes-backend.yaml): targetPort
+# must be the service's port NAME (`http`), never the number.
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: admin
+  namespace: unique
+  # Wave 5 (infra), not 6 — same reasoning as route-chat.yaml: the Route must not
+  # sit behind the user-owned-secret ExternalSecrets (wave 6) that stay Degraded
+  # until their ASM secrets exist, or the Route would never apply.
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+spec:
+  host: <DOMAIN_BASE>
+  path: /admin
+  to:
+    kind: Service
+    name: admin-app
+  port:
+    targetPort: http

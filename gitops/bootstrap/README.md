@@ -34,7 +34,7 @@ oc -n openshift-gitops rollout status deploy/openshift-gitops-server
 #    a GitHub deploy key). ArgoCD needs this BEFORE the first sync.
 oc -n openshift-gitops create secret generic repo-hello-openshift \
   --from-literal=type=git \
-  --from-literal=url=git@github.com:Unique-AG/hello-openshift.git \
+  --from-literal=url=<GITHUB_REPO_URL> \
   --from-file=sshPrivateKey=.specs/argocd-deploy-key
 oc -n openshift-gitops label secret repo-hello-openshift \
   argocd.argoproj.io/secret-type=repository

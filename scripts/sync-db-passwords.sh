@@ -16,7 +16,7 @@
 # failed", which is litellm failing to reach its own local prisma engine after
 # that engine exited on the auth error -- two layers below the real cause.
 #
-# Same family as scripts/set-zitadel-ids.sh: a rebuild invalidates credentials
+# Same family as scripts/configure-instance.sh: a rebuild invalidates credentials
 # generated INSIDE the old cluster, and the stored copies must be re-synced.
 #
 # Consumers handled here:

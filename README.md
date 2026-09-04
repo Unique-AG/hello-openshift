@@ -53,9 +53,10 @@ read each other through `terraform_remote_state`, never through copied values.
 
 ### GitOps layers
 
-Inside the cluster, ArgoCD applies an app-of-apps root in sync-wave order. The
-ordering is load-bearing: operators must be Established before their custom
-resources exist, and Cilium must own the datapath before any workload starts.
+Inside the cluster, one ApplicationSet generates an Application per spec in
+`gitops/environments/<env>/apps/`, applied in sync-wave order. The ordering is
+load-bearing: operators must be Established before their custom resources
+exist, and Cilium must own the datapath before any workload starts.
 
 | Wave | Layer | Contents |
 |---|---|---|
@@ -251,8 +252,8 @@ propagation is idempotent from any starting state.
 | Script | Purpose |
 |---|---|
 | `bootstrap.sh` | Create the state backend and migrate state into it |
-| `set-cluster-domain.sh` | Propagate the cluster DNS identity from `cluster-domain.env` |
-| `set-zitadel-ids.sh` | Propagate Zitadel object IDs from `zitadel-ids.env` |
+| `configure-instance.sh` | Stamp an environment's `instance-config.yaml` into the gitops tree (`--check` to report drift) |
+| `validate-instance.sh` | Refuse a tree that still holds placeholders or unset values |
 | `set-harbor-dns.sh` | Point the Harbor record at the internal ELB |
 | `setup-harbor-projects.sh` | Create Harbor registry endpoints and proxy-cache projects |
 | `sync-db-passwords.sh` | Re-point stored credentials at the current CloudNativePG password |
@@ -262,19 +263,25 @@ propagation is idempotent from any starting state.
 | `scan-secrets.sh` | Gitleaks over the full history |
 | `setup-hooks.sh` | Install the pre-commit and pre-push hooks |
 
-Two files carry a live cluster's identity and are gitignored; create them from
-their templates:
+One file carries a live cluster's identity. Create it from the template, fill
+it in, and stamp it into the tree:
 
 ```bash
-cd gitops/environments/sbx
-cp cluster-domain.env.template cluster-domain.env
-cp zitadel-ids.env.template zitadel-ids.env
+cp gitops/instance-config.yaml.template gitops/environments/sbx/instance-config.yaml
+# edit it, then
+./scripts/configure-instance.sh sbx
+./scripts/validate-instance.sh sbx
 ```
 
-A stale value in either is severe, and each template's header says exactly how
-it fails. A stale cluster domain takes every node NotReady; a stale Zitadel
-project id makes every authenticated request look role-less, and the resulting
-"Forbidden resource" arrives inside an HTTP 200.
+A stale value is severe, and the file's own annotations say exactly how each one
+fails. A stale `cluster.domain` takes every node NotReady, because it is
+Cilium's `k8sServiceHost` and `kubeProxyReplacement` leaves no service-IP
+fallback. A stale `zitadel.projectId` makes every authenticated request look
+role-less, and the resulting "Forbidden resource" arrives inside an HTTP 200.
+
+`configure-instance.sh` is idempotent from any starting state: it records what
+it last applied in `.instance-applied.yaml`, so it always knows the exact string
+it is replacing.
 
 ### Values with no propagation script
 
@@ -303,8 +310,21 @@ idempotent.
 `sbx` is the only concrete environment. To add one:
 
 1. `environments/<env>/` — tfvars per stack, plus `backend/<stack>.s3.tfbackend`
-2. `gitops/environments/<env>/` — app-of-apps root and overlays
-3. `gitops/bootstrap/envs/<env>/root-app.yaml`, applied on that cluster
+2. `gitops/environments/<env>/` — `instance-config.yaml` (from
+   `gitops/instance-config.yaml.template`), `apps/`, `value-overlays/`,
+   `manifests/` and `argo/`
+3. `scripts/configure-instance.sh <env>` to stamp the instance values, then
+   `scripts/validate-instance.sh <env>`
+4. `oc apply -k gitops/bootstrap/envs/<env>` on that cluster — this creates the
+   AppProject, the repo credential and the ApplicationSet that generates one
+   Application per spec in `apps/`
+
+See [docs/release-concept.md](docs/release-concept.md) for the branch model and
+where each kind of configuration belongs.
+
+Note: `configure-instance.sh` currently rewrites all of `gitops/`, including the
+shared `bootstrap/` and `components/` trees, so a second environment first needs
+the cluster-specific files moved out of those into its own directory.
 
 ## Documentation
 
@@ -370,5 +390,5 @@ See [LICENSE](LICENSE) — the [Unique License v1](https://github.com/Unique-AG/
 - [hello-aws](https://github.com/Unique-AG/hello-aws) — the EKS/managed-services sibling
 - [ROSA HCP documentation](https://docs.redhat.com/en/documentation/red_hat_openshift_service_on_aws/)
 - [Terraform `rhcs` provider](https://registry.terraform.io/providers/terraform-redhat/rhcs/latest/docs)
-- [ArgoCD app-of-apps pattern](https://argo-cd.readthedocs.io/en/stable/operator-manual/cluster-bootstrapping/)
+- [ArgoCD ApplicationSet](https://argo-cd.readthedocs.io/en/stable/operator-manual/applicationset/) · [cluster bootstrapping](https://argo-cd.readthedocs.io/en/stable/operator-manual/cluster-bootstrapping/)
 - [CloudNativePG](https://cloudnative-pg.io/) · [External Secrets Operator](https://external-secrets.io/) · [Cilium](https://docs.cilium.io/)

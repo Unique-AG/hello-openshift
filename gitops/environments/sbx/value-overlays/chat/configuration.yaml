@@ -1,0 +1,102 @@
+# backend-service-configuration (chart helm/configuration 2026.37.0) —
+# configuration-backend (feature-flag / theme service). node-chat and
+# scope-management read remote feature-flag config from this service at startup
+# (CONFIGURATION_BACKEND_URL); missing it makes those services exit 1.
+# Flattened from the reference deployment (defaults/backend-services/configuration.yaml +
+# sbx/values/backend-services/{_all,configuration}.yaml), adapted:
+#   - image via the ECR pull-through cache (<AWS_ACCOUNT_ID> / uniquecr).
+#   - Kong/Gateway-API HTTPRoutes DISABLED (no Gateway API CRDs on this cluster);
+#     reachable in-cluster at configuration-backend.unique.svc:8095.
+#   - DATABASE_URL built by the chart in structured mode from the in-cluster CNPG
+#     cluster (configuration DB, app_user), password from the chat-db
+#     ExternalSecret — replaces the reference deployment's baked psql-connection-string-theme DSN.
+#     (the reference deployment names this DB `theme`; here it gets a self-documenting `configuration`
+#     database created on the same CNPG cluster.)
+#   - No RabbitMQ / Redis (configuration-backend uses neither on this cluster).
+
+image:
+  registry: <REGISTRY_HOST>
+  repository: uniquecr/backend-service-configuration
+  useDigest: false
+  tag: "2026.37.0"
+
+routes:
+  hostname: <DOMAIN_BASE>
+  pathPrefix: /configuration
+  paths:
+    default:
+      enabled: false
+    probe:
+      enabled: false
+
+# NEW IN 2026.34: the chart ships extraRoutes.notifications-optout ENABLED by
+# default (a Kong HTTPRoute on /notifications, for the notification-bell work in
+# 2026.30/.34). The chart hard-fails when any route is enabled without the
+# Gateway API CRDs — `helm template` at 2026.37.0 aborted with
+# "You can't use extraRoutes without CRDs installed. Install CRDs first."
+# There is no Gateway API on this cluster, so switch it off. If the notification
+# features are ever turned on here (FEATURE_FLAG_NEW_NOTIFICATION_BANNER_UN_23900
+# / NOTIFICATIONS_BELL), expose /notifications with an OpenShift Route pointing at
+# configuration-backend instead, as chat/routes-backend.yaml does for the others.
+extraRoutes:
+  notifications-optout:
+    enabled: false
+
+postgresql:
+  enabled: true
+  connection:
+    host: hello-openshift-postgres-rw.hello-openshift-data.svc.cluster.local
+    port: 5432
+    database: configuration
+    username: app_user
+    password:
+      fromSecret:
+        name: chat-db
+        key: password
+    sslMode: require
+
+redis:
+  enabled: false
+  connection: {}
+
+prometheus:
+  enabled: false
+
+secretProvider: {}
+
+env:
+  LOG_LEVEL: info
+  MAX_HEAP_MB: "200"
+  AUDIT_LOG_DIR: /dev/stdout
+  UNIQUE_INSTALLATION_ID: <DOMAIN_BASE>
+  ADMIN_FRONTEND_URL: https://<DOMAIN_BASE>/admin
+  CHAT_FRONTEND_URL: https://<DOMAIN_BASE>/chat
+  CORS_ALLOWED_ORIGINS: https://<DOMAIN_BASE>
+  ZITADEL_HOST: https://<DOMAIN_IDENTITY>
+  ZITADEL_PROJECT_ID: "<ZITADEL_PROJECT_ID>"
+  ZITADEL_ROOT_ORG_ID: "<ZITADEL_ROOT_ORG_ID>"
+  CHAT_BACKEND_API_URL: http://chat.unique.svc:8093
+  SCOPE_MANAGEMENT_API_URL: http://scope-management.unique.svc:8094
+
+serviceAccount:
+  enabled: true
+  workloadIdentity:
+    enabled: false
+
+podAnnotations:
+  reloader.stakater.com/auto: "true"
+
+nodeSelector: {}
+
+keda:
+  skipCrdCheck: true
+
+replicaCount: 1
+
+resources:
+  limits:
+    cpu: 100m
+    memory: 350Mi
+  requests:
+    cpu: 100m
+    memory: 300Mi

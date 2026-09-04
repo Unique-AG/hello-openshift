@@ -18,11 +18,11 @@ tunnelProtocol: geneve
 # bypasses kube-proxy's iptables DNAT and ClusterIPs (incl. DNS) black-hole.
 kubeProxyReplacement: true
 # NOTE: this is the cluster's own API FQDN and it changes on every rebuild - the
-# domain-prefix is stable but Red Hat assigns a new shard segment (m1sa -> c6lq on
+# domain-prefix is stable but Red Hat assigns a new shard segment (<shard-a> -> <shard-b> on
 # 2026-08-25). Cilium cannot reach the apiserver if this is stale, and with
 # kubeProxyReplacement there is no service IP to fall back on, so the whole DaemonSet
 # fails to start. Re-derive it from `rosa describe cluster` on every rebuild.
-k8sServiceHost: api.<cluster-id>.<shard>.p3.openshiftapps.com
+k8sServiceHost: api.<CLUSTER_DOMAIN>
 k8sServicePort: 443
 endpointRoutes:
   enabled: true

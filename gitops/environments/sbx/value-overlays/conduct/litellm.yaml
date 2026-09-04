@@ -1,0 +1,234 @@
+# LiteLLM (oci://ghcr.io/berriai/litellm-helm 1.90.2) — flattened from
+# the four value layers QA stacks (monorepo value-overlay, infra
+# offset defaults, QA values, global security baseline), Azure bits
+# trimmed. Baseline settings win where layers conflict, matching QA's
+# file order.
+#
+# SKIPPED vs QA:
+#   - imagePullSecrets + ACR-mirrored image (digest of the mirror dropped;
+#     public ghcr.io tag pinned instead)
+#   - ingress (Tailscale) + PROXY_BASE_URL (*.ts.net)
+#   - Azure workload identity (podLabels, serviceAccount annotations) and
+#     enable_azure_ad_token_refresh
+#   - GCP Vertex WIF (volumes, volumeMounts, GOOGLE_APPLICATION_CREDENTIALS,
+#     VERTEXAI_PROJECT) — no GCP federation on this cluster
+#   - litellm-extras chart (Key Vault SecretStore, CiliumNetworkPolicy,
+#     alerts, dashboard, viewer-user job) — see components/conduct/README.md
+#   - QA's monorepo model_list (60+ models incl. Azure OpenAI deployments) —
+#     trimmed to public-API Anthropic models
+#   - prometheus_metrics_config allowlist (QA metric-cardinality tuning)
+
+image:
+  # QA: uniqueapp.azurecr.io/ghcr.io/berriai/litellm-database v1.90.2 —
+  # substituted with the public upstream AND bumped past QA's pin.
+  #
+  # Why the bump: 1.90.2 cannot use ambient IRSA credentials for Bedrock. It
+  # signs its own SigV4 and Bedrock rejects it with
+  # 403 "The security token included in the request is invalid", while boto3 in
+  # the same pod signs the identical call correctly. No proxy_config setting
+  # fixes it — verified against the explicit web-identity params, the
+  # `aws_role_name`-only "already running as role" branch, and frozen vs
+  # un-frozen credentials (see git history for the dead ends). Chart pinned to
+  # the matching 1.97.0 digest in root/app-litellm.yaml.
+  repository: ghcr.io/berriai/litellm-database
+  tag: v1.97.0
+  pullPolicy: IfNotPresent
+
+# The Prisma schema migration Job. QA inverts the chart's defaults because it
+# deploys with Helm; here ArgoCD does the syncing, so keep the chart's own
+# ArgoCD hook mode. Getting this backwards (argocd:false + helm:true) meant the
+# Job was rendered as a Helm hook, was never created, and the `litellm` database
+# stayed EMPTY (0 tables) — LiteLLM then 403s every request because it cannot
+# read `LiteLLM_VerificationToken` to verify the caller's key, which node-chat
+# surfaces to the user as "the AI Assistant has reached its capacity".
+migrationJob:
+  hooks:
+    argocd:
+      enabled: true
+    helm:
+      enabled: false
+
+# The chart must NOT create the ServiceAccount: its migration Job is a PreSync
+# hook, which runs before this app's own sync, so a chart-created SA does not
+# exist yet and the Job cannot start a pod. It is owned by the conduct app
+# (wave 4) instead — see conduct/serviceaccount-litellm.yaml.
+serviceAccount:
+  create: false
+  name: litellm
+
+replicaCount: 1 # QA: 2
+
+podAnnotations:
+  reloader.stakater.com/auto: 'true' # inert until reloader is installed
+
+resources:
+  requests:
+    memory: 1Gi
+    cpu: 500m
+  limits:
+    memory: 2Gi
+
+proxy_config:
+  model_list:
+    # Anthropic via AWS Bedrock (EU cross-region inference profiles) — no API
+    # key anywhere; auth is IRSA (the bedrock role trusts
+    # system:serviceaccount:system:litellm).
+    #
+    # Do NOT set litellm's aws_web_identity_token / aws_role_name /
+    # aws_session_name here. That code path calls get_secret() on the value
+    # (llms/bedrock/base_aws_llm.py::_auth_with_web_identity_token), i.e. it
+    # expects an env-var name or secret-manager key holding the token STRING —
+    # passing the projected-token file path yields
+    # 401 "OIDC token could not be retrieved from secret manager". It is also
+    # the wrong model for a projected service-account token, which rotates.
+    # Instead leave the credentials unset so litellm falls back to the boto3
+    # default chain, which resolves AWS_ROLE_ARN + AWS_WEB_IDENTITY_TOKEN_FILE
+    # (injected by the aws-pod-identity webhook from the SA's
+    # eks.amazonaws.com/role-arn annotation). Verified working inside this very
+    # pod: boto3 assumes rosa-uq-openshift-sbx-bedrock and bedrock-runtime
+    # converse() succeeds.
+    - model_name: anthropic-claude-haiku-4-5
+      litellm_params:
+        model: bedrock/eu.anthropic.claude-haiku-4-5-20251001-v1:0
+        aws_region_name: <AWS_REGION>
+        aws_profile_name: bedrock
+        max_tokens: 10000
+    - model_name: anthropic-claude-sonnet-4-5
+      litellm_params:
+        model: bedrock/eu.anthropic.claude-sonnet-4-5-20250929-v1:0
+        aws_region_name: <AWS_REGION>
+        aws_profile_name: bedrock
+        max_tokens: 10000
+    - model_name: anthropic-claude-opus-4-5
+      litellm_params:
+        model: bedrock/eu.anthropic.claude-opus-4-5-20251101-v1:0
+        aws_region_name: <AWS_REGION>
+        aws_profile_name: bedrock
+        max_tokens: 10000
+    # Embeddings for grounding/RAG retrieval. Alias name matches what
+    # Conduct's ingestion/retrieval calls (QA: cohere-embed-4-fp16).
+    # Bedrock Cohere Embed v4; fallback amazon.titan-embed-text-v2:0
+    # (verified invokable) if litellm's cohere-bedrock path errors.
+    - model_name: cohere-embed-4-fp16
+      litellm_params:
+        # Must be the EU cross-region INFERENCE PROFILE, not the bare model id.
+        # `bedrock/cohere.embed-v4:0` is rejected: "Invocation of model ID
+        # cohere.embed-v4:0 with on-demand throughput isn't supported. Retry your
+        # request with the ID or ARN of an inference profile that contains this
+        # model." Verified ACTIVE via list-inference-profiles and a live
+        # invoke-model returning float embeddings.
+        model: bedrock/eu.cohere.embed-v4:0
+        aws_region_name: <AWS_REGION>
+        aws_profile_name: bedrock
+
+  general_settings:
+    alerting: []
+    alert_types: []
+    alerting_threshold: 300
+    spend_report_frequency: '30d'
+    master_key: os.environ/PROXY_MASTER_KEY # provided by the `litellm` ExternalSecret
+    proxy_batch_write_at: 60
+    database_connection_pool_limit: 10
+    disable_spend_logs: false
+    disable_error_logs: false
+    # Security baseline (gitops-resources/defaults/global/litellm/security-baseline)
+    store_model_in_db: false
+    store_prompts_in_spend_logs: false
+    disable_master_key_return: true
+    disable_adding_master_key_hash_to_db: true
+    disable_responses_id_security: false
+    reject_clientside_metadata_tags: true
+    forward_client_headers_to_llm_api: false
+
+  litellm_settings:
+    modify_params: true
+    max_budget: 10000
+    budget_duration: 30d
+    json_logs: true
+    cache: true
+    cache_params:
+      type: redis
+      namespace: 'litellm.caching.caching'
+    prometheus_initialize_budget_metrics: true
+    redact_messages_in_exceptions: false # QA override of the offset default
+    request_timeout: 3600
+    set_verbose: false
+    callbacks:
+      - prometheus
+    service_callback:
+      - prometheus_system
+    # Security baseline
+    redact_user_api_key_info: true
+    turn_off_message_logging: true
+    require_auth_for_metrics_endpoint: false
+
+ingress:
+  enabled: false
+
+securityContext:
+  allowPrivilegeEscalation: false
+
+serviceMonitor:
+  enabled: true
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 50
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                  - litellm
+          topologyKey: kubernetes.io/hostname
+
+## values to align the upstream chart with ours
+
+db:
+  deployStandalone: false
+  useExisting: false
+environmentSecrets: [litellm]
+
+# Mount the AWS config file that defines the `bedrock` profile (ConfigMap
+# litellm-aws-config, created by the conduct app in this namespace). See that
+# file for why the profile path is the only litellm credential path that can
+# sign Bedrock requests with IRSA.
+volumes:
+  - name: aws-config
+    configMap:
+      name: litellm-aws-config
+      items:
+        - key: config
+          path: config
+
+volumeMounts:
+  - name: aws-config
+    mountPath: /etc/aws
+    readOnly: true
+
+envVars:
+  AWS_REGION: <AWS_REGION>
+  # Makes boto3 pick up the `bedrock` profile referenced by every model entry.
+  AWS_CONFIG_FILE: /etc/aws/config
+  LITELLM_LOG: 'INFO'
+  REDIS_URL: 'redis://litellm-redis-ot:6379/0'
+  LITELLM_MODE: PRODUCTION
+
+serviceAccount:
+  # IRSA: the ROSA pod-identity webhook injects Bedrock STS creds for
+  # this role (terraform/2-cluster oidc.tf trusts system:litellm)
+  create: true
+  name: litellm
+  annotations:
+    eks.amazonaws.com/role-arn: arn:aws:iam::<AWS_ACCOUNT_ID>:role/rosa-uq-openshift-sbx-bedrock
+
+extraEnvVars:
+  - name: DATABASE_URL
+    valueFrom:
+      secretKeyRef:
+        name: litellm
+        key: DATABASE_URL
+masterkeySecretName: litellm
+masterkeySecretKey: PROXY_MASTER_KEY

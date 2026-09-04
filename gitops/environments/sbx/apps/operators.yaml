@@ -1,0 +1,7 @@
+# prune: false — pruning a Subscription doesn't uninstall its CSV
+# anyway; this avoids surprise operator removal on refactors.
+spec:
+  name: operators
+  namespace: openshift-operators
+  wave: "1"
+  path: gitops/environments/sbx/manifests/operators

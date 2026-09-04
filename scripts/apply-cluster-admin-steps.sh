@@ -86,19 +86,24 @@ else
   done
 fi
 
-# ── 4. The hand-applied root Application ──────────────────────────────────────
-step "root Application (the only ArgoCD object nobody else applies)"
-if oc -n openshift-gitops get application root-sbx >/dev/null 2>&1; then
-  ok "root-sbx exists"
+# ── 4. The hand-applied ArgoCD control plane ──────────────────────────────────
+# The AppProject, the uniquecr repo credential and the `sbx` ApplicationSet.
+# These are the only ArgoCD objects nobody else applies: the AppProject has to
+# exist before any Application in it can sync, so it cannot be managed by an
+# Application inside that project. Everything the ApplicationSet generates IS
+# self-healing.
+step "ArgoCD control plane (AppProject + repo cred + ApplicationSet)"
+if oc -n openshift-gitops get applicationset sbx >/dev/null 2>&1; then
+  ok "applicationset/sbx exists"
   if [ "$CHECK_ONLY" -eq 0 ]; then
     oc apply -k "$REPO_ROOT/gitops/bootstrap/envs/sbx" >/dev/null 2>&1 \
-      && did "re-applied (picks up ignoreDifferences edits)" || todo "re-apply FAILED"
+      && did "re-applied (picks up template/ignoreDifferences edits)" || todo "re-apply FAILED"
   fi
 elif [ "$CHECK_ONLY" -eq 1 ]; then
-  todo "root-sbx absent -> oc apply -k gitops/bootstrap/envs/sbx"
+  todo "applicationset/sbx absent -> oc apply -k gitops/bootstrap/envs/sbx"
 else
   oc apply -k "$REPO_ROOT/gitops/bootstrap/envs/sbx" >/dev/null 2>&1 \
-    && did "root-sbx created" || todo "root-sbx apply FAILED"
+    && did "applicationset/sbx created" || todo "applicationset apply FAILED"
 fi
 
 # ── 5. Not scriptable: reported, never guessed ────────────────────────────────

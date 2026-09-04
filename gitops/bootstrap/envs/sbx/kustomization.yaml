@@ -1,5 +1,13 @@
+# Bootstraps the sbx environment's ArgoCD control plane. Run once per cluster,
+# after gitops/bootstrap itself:
+#
+#   oc apply -k gitops/bootstrap/envs/sbx
+#
+# This used to apply a single root-sbx Application that recursed into
+# environments/sbx/root. It now applies the environment's argo/ directory, whose
+# ApplicationSet generates one Application per spec in environments/sbx/apps.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - root-app.yaml
+  - ../../../environments/sbx/argo

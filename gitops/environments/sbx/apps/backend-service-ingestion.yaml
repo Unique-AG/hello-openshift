@@ -1,0 +1,22 @@
+# backend-service-ingestion — node-ingestion (chart oci://uniquecr.azurecr.io/
+# helm/ingestion 2026.37.0, pulled via the ArgoCD uniquecr OCI repo credential in
+# root/external-secret-argocd-uniquecr.yaml). Multi-source: chart + git values.
+# Wave 6, alongside the other chat backends. Served in-cluster at
+# ingestion.unique.svc:8091 and publicly at /ingestion via the Route in the chat
+# infra app (chat/route-ingestion.yaml).
+#
+# Why: the chat frontend calls /ingestion/graphql unconditionally. Without a
+# service behind that path the Route 503s and the chat detail view
+# (/chat/chat_<id>) hard-fails with "Something went wrong".
+spec:
+  name: backend-service-ingestion
+  namespace: unique
+  wave: "6"
+  sources:
+    - repoURL: uniquecr.azurecr.io
+      chart: helm/ingestion
+      targetRevision: 2026.37.0
+      helm:
+        releaseName: backend-service-ingestion
+        valueFiles:
+          - $values/gitops/environments/sbx/value-overlays/chat/ingestion.yaml

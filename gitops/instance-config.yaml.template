@@ -1,0 +1,81 @@
+# instance-config.yaml.template — copy per environment and fill in your values:
+#
+#   cp gitops/instance-config.yaml.template gitops/environments/<env>/instance-config.yaml
+#   # edit it, then:
+#   ./scripts/configure-instance.sh <env>
+#   ./scripts/validate-instance.sh <env>
+#
+# This file lives on the TEMPLATE branch, which carries the placeholders below
+# and is NEVER deployed directly. The deployment branch carries the filled-in
+# instance-config.yaml per environment. See docs/release-concept.md.
+
+github:
+  # Where ArgoCD pulls values from. This is the PRIVATE deployment repo, not the
+  # public template — the public repo is tracked as `upstream` and only supplies
+  # release content.
+  repoURL: "<GITHUB_REPO_URL>"
+  targetRevision: "<GIT_TARGET_REVISION>"
+
+domain:
+  # One host, path-based routing. There is no api.* host on this cluster, so
+  # browser-side API URLs share the base host.
+  base: "<DOMAIN_BASE>"
+  identity: "<DOMAIN_IDENTITY>"
+  # Zitadel's public issuer is derived as https://<domain.identity> — it is not
+  # a separate value, so it cannot drift out of step with the identity host.
+
+cluster:
+  # ROSA assigns a fresh shard segment on every `rosa create cluster`, so both of
+  # these change on a rebuild while the domain prefix survives. Re-derive with
+  # `terraform -chdir=terraform/2-cluster output -raw cluster_domain`.
+  #
+  # A stale cluster.domain is severe: it is Cilium's k8sServiceHost, and with
+  # kubeProxyReplacement there is no service-IP fallback, so every node goes
+  # NotReady.
+  domain: "<CLUSTER_DOMAIN>"
+  appsDomain: "<APPS_DOMAIN>"
+
+registry:
+  # Harbor proxy cache. Deliberately on our OWN domain and not the cluster apps
+  # domain: it is resolved inside the VPC by a Route53 private zone pointing at
+  # the internal ELB, so it survives a rebuild untouched and the image
+  # references never need rewriting.
+  host: "<REGISTRY_HOST>"
+  # The Harbor UI Route, which IS on the rebuild-variable cluster apps domain.
+  uiHost: "<REGISTRY_UI_HOST>"
+  # Proxy-cache project standing in for uniquecr.azurecr.io.
+  project: uniquecr
+
+aws:
+  region: "<AWS_REGION>"
+  accountId: "<AWS_ACCOUNT_ID>"
+  # Separate account owning the CloudFront distribution; the VPC origin is
+  # RAM-shared to it.
+  connectivity:
+    accountId: "<CONNECTIVITY_ACCOUNT_ID>"
+  acm:
+    # Wildcard certificate fronting the internal ELB for the registry host.
+    certificateArn: "<ACM_CERTIFICATE_ARN>"
+
+zitadel:
+  # Object IDs, not secrets — but every one of them changes when Zitadel is
+  # rebuilt, and a stale value is invisible: the backends read roles from the
+  # claim urn:zitadel:iam:org:project:<projectId>:roles, so a wrong projectId
+  # makes every authenticated request look role-less and returns "Forbidden
+  # resource" inside an HTTP 200.
+  #
+  # Re-derive by running setup-zitadel.sh (docs/reboot-runbook.md § Identity).
+  #
+  # NOT covered here — both live in AWS Secrets Manager and must be refreshed by
+  # hand on a rebuild:
+  #   hello-openshift/sbx/chat-secrets            -> JWT_PUBLIC_KEY (Zitadel JWKS)
+  #   hello-openshift/sbx/scope-management-secrets -> ZITADEL_PAT (IAM_OWNER PAT)
+
+  # Project "unique" — what every service resolves roles against.
+  projectId: "<ZITADEL_PROJECT_ID>"
+  # Root org "Cluster IAM" — holds the project and the machine users.
+  rootOrgId: "<ZITADEL_ROOT_ORG_ID>"
+  # Tenant org "Unique" — the org end users belong to and log in against.
+  orgId: "<ZITADEL_ORG_ID>"
+  # SPA OIDC client shared by the chat, admin and knowledge-upload frontends.
+  clientId: "<ZITADEL_CLIENT_ID>"
